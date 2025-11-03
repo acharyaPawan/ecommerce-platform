@@ -1,0 +1,13 @@
+{
+  "name": "ecommerce-platform",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.18.3",
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint --if-present",
+    "test": "pnpm -r test --if-present",
+    "clean": "pnpm -r exec rm -rf dist"
+  }
+}

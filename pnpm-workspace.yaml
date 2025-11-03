@@ -1,0 +1,4 @@
+# Monorepo workspace map
+packages:
+  - "packages/*"
+  - "services/*"
