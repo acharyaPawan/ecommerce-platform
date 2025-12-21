@@ -1,6 +1,11 @@
-import { drizzle } from 'drizzle-orm/neon-http';
-import * as schema from './schema.js';
+import 'dotenv/config';
+import { defineConfig } from 'drizzle-kit';
 
-export const db = drizzle(process.env.DATABASE_URL!, {
-    schema: schema
+export default defineConfig({
+  out: './drizzle',
+  schema: './src/db/schema.ts',
+  dialect: 'postgresql',
+  dbCredentials: {
+    url: process.env.DATABASE_URL!,
+  },
 });
