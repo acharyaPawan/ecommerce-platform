@@ -1,17 +1,15 @@
 import { serve } from '@hono/node-server'
-import { Hono } from 'hono'
 import { auth } from './auth';
-
-const app = new Hono()
-
-app.get('/', (c) => c.text('Hello Node.js!'))
+import { Hono } from 'hono';
+import { app } from './app'; 
 
 
-app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
-
-app.get('/', (c) => c.text('Hello Node.js!'))
-
-const server = serve(app)
+const port = Number(process.env.PORT ?? 3000);
+const server = serve({
+  fetch: app.fetch,
+  port,
+});
+console.log(`[iam-svc] listening on port ${port}`);
 
 // graceful shutdown
 process.on('SIGINT', () => {

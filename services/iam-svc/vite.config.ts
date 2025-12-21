@@ -1,5 +1,5 @@
 // vite.config.ts
-import { defineConfig } from "vite";
+import { defineConfig, mergeConfig } from "vite";
 
 export default defineConfig({
   build: {
