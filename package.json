@@ -9,5 +9,12 @@
     "lint": "pnpm -r lint --if-present",
     "test": "pnpm -r test --if-present",
     "clean": "pnpm -r exec rm -rf dist"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.24",
+    "@vitest/ui": "^4.0.16",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.0",
+    "vitest": "^4.0.16"
   }
 }

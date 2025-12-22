@@ -1,4 +1,11 @@
-import { pgTable, text, timestamp, boolean, pgSchema } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  timestamp,
+  boolean,
+  pgSchema,
+  jsonb,
+} from "drizzle-orm/pg-core";
 
 export const auth = pgSchema("auth");
 
@@ -56,6 +63,24 @@ export const verification = auth.table("verification", {
   identifier: text("identifier").notNull(),
   value: text("value").notNull(),
   expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const iamOutboxEvents = pgTable("iam_outbox_events", {
+  id: text("id").primaryKey(),
+  type: text("type").notNull(),
+  aggregateId: text("aggregate_id").notNull(),
+  aggregateType: text("aggregate_type").default("user").notNull(),
+  payload: jsonb("payload").notNull(),
+  occurredAt: timestamp("occurred_at").notNull(),
+  correlationId: text("correlation_id"),
+  causationId: text("causation_id"),
+  status: text("status").default("pending").notNull(),
+  publishedAt: timestamp("published_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()

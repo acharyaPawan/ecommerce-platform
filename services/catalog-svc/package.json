@@ -12,7 +12,6 @@
   },
   "dependencies": {
     "@ecommerce/core": "workspace:*",
-    "@ecommerce/drizzle": "workspace:*",
     "@ecommerce/events": "workspace:*",
     "@hono/node-server": "^1.19.6",
     "hono": "^4.10.4"

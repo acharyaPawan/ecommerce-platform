@@ -1,0 +1,7 @@
+{
+  "name": "@extension/tsconfig",
+  "version": "0.0.0",
+  "description": "ecommerce-platform - tsconfig",
+  "private": true,
+  "sideEffects": false
+}
