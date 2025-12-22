@@ -75,10 +75,9 @@ export class RabbitMqClient {
     options: PublishOptions<TPayload> = {}
   ): Promise<boolean> {
     const routingKey = options.routingKey ?? buildRoutingKey(event.type);
-    const payloadBuffer = Buffer.from(JSON.stringify(event));
-    if (options.schema) {
-      options.schema.parse(event);
-    }
+    const payload = options.schema ? options.schema.parse(event) : event;
+    // Publish the schema-validated payload so defaults/transforms from the schema are not lost.
+    const payloadBuffer = Buffer.from(JSON.stringify(payload));
 
     return this.channel.publish(
       this.config.exchange,
@@ -133,10 +132,19 @@ export class RabbitMqClient {
             this.channel.ack(message);
           }
         } catch (error) {
-          if (!noAck) {
-            this.channel.nack(message, false, false);
+          const closing = isChannelClosingError(error);
+          if (!noAck && !closing) {
+            try {
+              this.channel.nack(message, false, false);
+            } catch (nackError) {
+              if (!isChannelClosingError(nackError)) {
+                console.error('RabbitMQ nack failed', nackError);
+              }
+            }
           }
-          console.error('RabbitMQ handler failed', error);
+          if (!closing) {
+            console.error('RabbitMQ handler failed', error);
+          }
         }
       },
       { noAck }
@@ -170,4 +178,13 @@ function getDefaultUrl(): string {
 
 function buildRoutingKey(eventType: string): string {
   return eventType.includes('.') ? eventType : `domain.${eventType}`;
+}
+
+// amqplib throws IllegalOperationError when interactions race with a closing channel.
+function isChannelClosingError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  const message = error.message.toLowerCase();
+  return message.includes('channel closing') || message.includes('channel closed');
 }

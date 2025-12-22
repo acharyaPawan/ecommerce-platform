@@ -11,7 +11,7 @@ import {
 
 const SIGN_UP_EMAIL_PATH = "/sign-up/email";
 const SIGN_IN_EMAIL_PATH = "/sign-in/email";
-const EMAIL_VERIFICATION_PATH = "/verification/email";
+const EMAIL_VERIFICATION_PATH = "/verification/email";//To check with better
 
 const persistOutboxEvent = async (event: AnyIamEvent) => {
   await db.insert(iamOutboxEvents).values({
@@ -24,6 +24,7 @@ const persistOutboxEvent = async (event: AnyIamEvent) => {
     correlationId: event.correlationId ?? null,
     causationId: event.causationId ?? null,
     status: "pending",
+    error: null,
   });
 };
 

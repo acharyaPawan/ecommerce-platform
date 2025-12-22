@@ -81,6 +81,7 @@ export const iamOutboxEvents = pgTable("iam_outbox_events", {
   causationId: text("causation_id"),
   status: text("status").default("pending").notNull(),
   publishedAt: timestamp("published_at"),
+  error: text("error"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()

@@ -5,13 +5,15 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "test": "../../node_modules/.bin/vitest run --config vitest.config.ts"
   },
   "dependencies": {
     "@ecommerce/events": "workspace:*",
     "amqplib": "^0.10.4"
   },
   "devDependencies": {
+    "@testcontainers/rabbitmq": "^11.10.0",
     "@types/amqplib": "^0.10.5"
   }
 }
