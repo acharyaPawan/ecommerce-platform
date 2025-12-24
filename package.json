@@ -11,9 +11,11 @@
     "clean": "pnpm -r exec rm -rf dist"
   },
   "devDependencies": {
+    "@testcontainers/postgresql": "^11.10.0",
     "@testcontainers/rabbitmq": "^11.10.0",
     "@types/node": "^20.19.24",
     "@vitest/ui": "^4.0.16",
+    "json-schema-to-ts": "^3.1.1",
     "typescript": "^5.9.3",
     "vite": "^7.3.0",
     "vitest": "^4.0.16"

@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@testcontainers/postgresql':
+        specifier: ^11.10.0
+        version: 11.10.0
       '@testcontainers/rabbitmq':
         specifier: ^11.10.0
         version: 11.10.0
@@ -17,6 +20,9 @@ importers:
       '@vitest/ui':
         specifier: ^4.0.16
         version: 4.0.16(vitest@4.0.16)
+      json-schema-to-ts:
+        specifier: ^3.1.1
+        version: 3.1.1
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -44,6 +50,9 @@ importers:
         specifier: ^0.10.4
         version: 0.10.9
     devDependencies:
+      '@testcontainers/rabbitmq':
+        specifier: ^11.10.0
+        version: 11.10.0
       '@types/amqplib':
         specifier: ^0.10.5
         version: 0.10.8
@@ -200,6 +209,10 @@ importers:
         version: 5.9.3
 
 packages:
+
+  '@babel/runtime@7.28.4':
+    resolution: {integrity: sha512-Q/N6JNWvIvPnLDvjlE1OUBLPQHH6l3CltCEsHIujp45zQUSSh8K+gHnaEX45yAT1nyngnINhvWtzN+Nb9D8RAQ==}
+    engines: {node: '>=6.9.0'}
 
   '@balena/dockerignore@1.0.2':
     resolution: {integrity: sha512-wMue2Sy4GAVTk6Ic4tJVcnfdau+gx2EnG7S+uAEe+TWJFqE4YoWN4/H8MSLj4eYJKxGg26lZwboEniNiNwZQ6Q==}
@@ -919,6 +932,9 @@ packages:
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
+  '@testcontainers/postgresql@11.10.0':
+    resolution: {integrity: sha512-d6QeN3KkXLJBdt0T6X3KKtdkHbaZdzCRPo133FSG8yOoGofQAYghtau39iUdeF9GAN8UTWZAxio40uYKBSV7xw==}
+
   '@testcontainers/rabbitmq@11.10.0':
     resolution: {integrity: sha512-VJVX1/M0NnZAufcxRbY0pOjIu7RCU9GEto4miwn1HhKrjFMoQCixv8bIhALvVKjFTilV5tg669dBnKQRLBYGTQ==}
 
@@ -1462,6 +1478,10 @@ packages:
   jose@6.1.0:
     resolution: {integrity: sha512-TTQJyoEoKcC1lscpVDCSsVgYzUDg/0Bt3WE//WiTPK6uOCQC2KZS4MpugbMWt/zyjkopgZoXhZuCi00gLudfUA==}
 
+  json-schema-to-ts@3.1.1:
+    resolution: {integrity: sha512-+DWg8jCJG2TEnpy7kOm/7/AxaYoaRbjVB4LFZLySZlWn8exGs3A4OLJR966cVvU26N7X9TWxl+Jsw7dzAqKT6g==}
+    engines: {node: '>=16'}
+
   kysely@0.28.8:
     resolution: {integrity: sha512-QUOgl5ZrS9IRuhq5FvOKFSsD/3+IA6MLE81/bOOTRA/YQpKDza2sFdN5g6JCB9BOpqMJDGefLCQ9F12hRS13TA==}
     engines: {node: '>=20.0.0'}
@@ -1811,6 +1831,9 @@ packages:
     resolution: {integrity: sha512-sf4i37nQ2LBx4m3wB74y+ubopq6W/dIzXg0FDGjsYnZHVa1Da8FH853wlL2gtUhg+xJXjfk3kUZS3BRoQeoQBQ==}
     engines: {node: '>=6'}
 
+  ts-algebra@2.0.0:
+    resolution: {integrity: sha512-FPAhNPFMrkwz76P7cdjdmiShwMynZYN6SgOujD1urY4oNm80Ou9oMdmbR45LotcKOXoy7wSmHkRFE6Mxbrhefw==}
+
   tslib@1.14.1:
     resolution: {integrity: sha512-Xni35NKzjgMrwevysHTCArtLDpPvye8zV/0E4EyYn43P7/7qvQwPh9BGkHewbMulVntbigmcT7rdX3BNo9wRJg==}
 
@@ -1984,6 +2007,8 @@ packages:
     resolution: {integrity: sha512-0wZ1IRqGGhMP76gLqz8EyfBXKk0J2qo2+H3fi4mcUP/KtTocoX08nmIAHl1Z2kJIZbZee8KOpBCSNPRgauucjw==}
 
 snapshots:
+
+  '@babel/runtime@7.28.4': {}
 
   '@balena/dockerignore@1.0.2': {}
 
@@ -2500,6 +2525,15 @@ snapshots:
       '@peculiar/x509': 1.14.0
 
   '@standard-schema/spec@1.1.0': {}
+
+  '@testcontainers/postgresql@11.10.0':
+    dependencies:
+      testcontainers: 11.10.0
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - react-native-b4a
+      - supports-color
 
   '@testcontainers/rabbitmq@11.10.0':
     dependencies:
@@ -3052,6 +3086,11 @@ snapshots:
 
   jose@6.1.0: {}
 
+  json-schema-to-ts@3.1.1:
+    dependencies:
+      '@babel/runtime': 7.28.4
+      ts-algebra: 2.0.0
+
   kysely@0.28.8: {}
 
   lazystream@1.0.1:
@@ -3451,6 +3490,8 @@ snapshots:
   tmp@0.2.5: {}
 
   totalist@3.0.1: {}
+
+  ts-algebra@2.0.0: {}
 
   tslib@1.14.1: {}
 

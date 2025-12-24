@@ -31,6 +31,6 @@ export default defineConfig({
     alias: {
       "@": "/src",
     },
-    preserveSymlinks: false
+    preserveSymlinks: true
   },
 });

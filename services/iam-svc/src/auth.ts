@@ -8,13 +8,19 @@ import {
   IamEventType,
   makeIamEnvelope,
 } from "./contracts/iam-events.js";
+import { openAPI } from "better-auth/plugins";
 
 const SIGN_UP_EMAIL_PATH = "/sign-up/email";
 const SIGN_IN_EMAIL_PATH = "/sign-in/email";
-const EMAIL_VERIFICATION_PATH = "/verification/email";//To check with better
+const EMAIL_VERIFICATION_PATH = "/verify-email";//To check with better
 
 const persistOutboxEvent = async (event: AnyIamEvent) => {
-  await db.insert(iamOutboxEvents).values({
+  await db.insert(iamOutboxEvents).values(mapToOutboxEvent(event));
+};
+
+
+export const mapToOutboxEvent = (event: AnyIamEvent) => {
+  return {
     id: event.id,
     type: event.type,
     aggregateId: event.aggregateId,
@@ -25,13 +31,19 @@ const persistOutboxEvent = async (event: AnyIamEvent) => {
     causationId: event.causationId ?? null,
     status: "pending",
     error: null,
-  });
+  }
 };
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
   }),
+  plugins: [
+    openAPI(),
+  ],
+  emailAndPassword: {
+    enabled: true,
+  },
   hooks: {
     after: createAuthMiddleware(async (ctx) => {
       const newSession = ctx.context.newSession;

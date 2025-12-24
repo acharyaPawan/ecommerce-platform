@@ -6,6 +6,7 @@ export default mergeConfig(
   defineProject({
     test: {
     pool: 'threads',
-    include: ['tests/**/*.test.ts']
+    include: ['tests/**/*.test.ts'],
+    setupFiles: ['./vitest.setup.ts']
   }})
 )

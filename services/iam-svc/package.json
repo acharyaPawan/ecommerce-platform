@@ -10,7 +10,7 @@
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "db:push": "pnpm exec drizzle-kit push",
-    "test": "vitest",
+    "test": "DEBUG=testcontainers* vitest",
     "worker:outbox": "tsx src/workers/iam-outbox-publisher.ts"
   },
   "dependencies": {
