@@ -1,44 +1,13 @@
-import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql'
-import type { AppType } from '../../src/app'
-import { afterAll, assert, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { FromSchema } from "json-schema-to-ts";
-import { iamOutboxEvents } from '../../src/db/schema';
-import { serve, ServerType } from '@hono/node-server';
-import { pushSchema } from 'drizzle-kit/api'
-import * as schema from '../../src/db/schema'
+import type { AppType } from '../../src/app'
 import type { Pool } from 'pg';
+import { ServerType } from '@hono/node-server';
+import { iamOutboxEvents } from '../../src/db/schema';
 import { IamEventType, makeIamEnvelope } from '../../src/contracts/iam-events';
 import { mapToOutboxEvent } from '../../src/auth';
-import { eq } from 'drizzle-orm';
-
-export async function setupDockerTestDb() {
-    const POSTGRES_USER = 'test'
-    const POSTGRES_PASSWORD = 'test'
-    const POSTGRES_DB = 'test'
-
-    // Make sure to use Postgres 15 with pg_uuidv7 installed
-    // Ensure you have the pg_uuidv7 docker image locally
-    // You may need to modify pg_uuid's dockerfile to install the extension or build a new image from its base
-    // https://github.com/fboulnois/pg_uuidv7
-    const container = await new PostgreSqlContainer("postgres:18.1-alpine").withEnvironment({
-            POSTGRES_USER: POSTGRES_USER,
-            POSTGRES_PASSWORD: POSTGRES_PASSWORD,
-            POSTGRES_DB: POSTGRES_DB,
-        })
-        .withExposedPorts(5432)
-        .start()
-
-    // const connectionString = `postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${container.getHost()}:${container.getFirstMappedPort()}/${POSTGRES_DB}`
-    return { container, connectionString: container.getConnectionUri() }
-}
-
-
-export async function setupServer(app: AppType) {
-    return serve({
-        fetch: app.fetch,
-        port: Number(process.env.PORT) ?? 3001
-    })
-}
+import { applyMigrations, setupDockerTestDb, setupServer } from './test-utils';
+import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 
 describe("Better-auth hooks works", () => {
     let container: StartedPostgreSqlContainer
@@ -56,10 +25,10 @@ describe("Better-auth hooks works", () => {
         const dbModule = await import('../../src/db');
         db = dbModule.default;
         pool = dbModule.pool;
-        await (await pushSchema(schema, db as any)).apply();
+        await applyMigrations(db);
         ({ default: app } = await import('../../src/app'));
 
-        server = await setupServer(app);
+        server = await setupServer(app, 3001);
     }, 60000 )
 
     afterAll(async () => {

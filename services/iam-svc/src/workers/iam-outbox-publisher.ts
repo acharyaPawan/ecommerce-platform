@@ -11,12 +11,12 @@ const DEFAULT_BATCH_SIZE = 25;
 const DEFAULT_POLL_INTERVAL_MS = 1000;
 const WORKER_NAME = "[iam-outbox-worker]";
 
-interface WorkerOptions {
+export interface WorkerOptions {
   batchSize: number;
   pollIntervalMs: number;
 }
 
-class IamOutboxPublisherWorker {
+export class IamOutboxPublisherWorker {
   private stopped = false;
   private delayTimer: NodeJS.Timeout | null = null;
   private delayResolve: (() => void) | null = null;
@@ -24,7 +24,7 @@ class IamOutboxPublisherWorker {
   constructor(
     private readonly broker: RabbitMqClient,
     private readonly options: WorkerOptions
-  ) {}
+  ) { }
 
   async start(): Promise<void> {
     console.log(
@@ -56,6 +56,7 @@ class IamOutboxPublisherWorker {
   }
 
   private async publishNextBatch(): Promise<number> {
+    console.log('here db is: ', process.env.DATABASE_URL)
     const pendingEvents = await db
       .select()
       .from(iamOutboxEvents)
@@ -63,14 +64,19 @@ class IamOutboxPublisherWorker {
       .orderBy(asc(iamOutboxEvents.occurredAt))
       .limit(this.options.batchSize);
 
+
     if (pendingEvents.length === 0) {
+      console.log('[iam-outbox-publisher]: No events in db to publish.')
       return 0;
     }
+
+    console.log('iam_outbox_publisher got', JSON.stringify(pendingEvents, null, 3))
 
     let publishedCount = 0;
     for (const record of pendingEvents) {
       const claimed = await this.claim(record.id);
       if (!claimed) {
+        console.error(`[${WORKER_NAME}]: can\'t claim the event ${record.id}`)
         continue;
       }
 
@@ -79,6 +85,7 @@ class IamOutboxPublisherWorker {
         await this.broker.publish(event);
         await this.markPublished(record.id);
         publishedCount += 1;
+        console.log('published one')
       } catch (error) {
         console.error(`${WORKER_NAME} failed to publish event ${record.id}`, error);
         await this.markFailed(record.id, error);
@@ -181,7 +188,7 @@ function resolveNumberFromEnv(name: string, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-async function bootstrap(): Promise<void> {
+export async function runIamOutboxPublisherWorker(): Promise<void> {
   const broker = await RabbitMqClient.connect({
     url: process.env.RABBITMQ_URL,
     exchange: process.env.IAM_EVENTS_EXCHANGE ?? "iam.events",
@@ -209,8 +216,3 @@ async function bootstrap(): Promise<void> {
 
   await worker.start();
 }
-
-bootstrap().catch((error) => {
-  console.error(`${WORKER_NAME} fatal error`, error);
-  process.exit(1);
-});

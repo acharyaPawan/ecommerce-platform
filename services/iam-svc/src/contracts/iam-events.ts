@@ -56,11 +56,20 @@ export type UserSignedInV1 = IamEnvelope<
   }
 >;
 
+export type UserSignedOutV1 = IamEnvelope<
+  IamEventType.UserSignedOutV1,
+  {
+    userId: string;
+    occurredAt: string;
+  }
+>;
+
 export type AnyIamEvent =
   | UserRegisteredV1
   | UserEmailVerifiedV1
   | UserProfileUpdatedV1
-  | UserSignedInV1;
+  | UserSignedInV1
+  | UserSignedOutV1;
 
 export function makeIamEnvelope<TType extends IamEventType, TPayload>(args: {
   type: TType;

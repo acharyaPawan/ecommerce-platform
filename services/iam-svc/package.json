@@ -11,7 +11,7 @@
     "dev": "tsx watch src/index.ts",
     "db:push": "pnpm exec drizzle-kit push",
     "test": "DEBUG=testcontainers* vitest",
-    "worker:outbox": "tsx src/workers/iam-outbox-publisher.ts"
+    "worker:outbox": "tsx src/workers/run-iam-outbox-publisher.ts"
   },
   "dependencies": {
     "@ecommerce/core": "workspace:*",
