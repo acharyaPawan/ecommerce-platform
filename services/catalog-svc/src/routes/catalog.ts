@@ -1,7 +1,6 @@
 import { Hono } from "hono";
 import { createProduct } from "../catalog/service.js";
 import { createProductSchema } from "../catalog/schemas.js";
-import * as z from 'zod';
 
 export const catalogApi = new Hono();
 
@@ -18,7 +17,7 @@ catalogApi.post("/products", async (c) => {
     return c.json(
       {
         error: "Validation failed",
-        details: z.treeifyError,
+        details: parsed.error.format(),
       },
       422
     );
@@ -30,11 +29,13 @@ catalogApi.post("/products", async (c) => {
       idempotencyKey: c.req.header("idempotency-key") ?? undefined,
     });
 
+    c.header("x-idempotent-replay", result.idempotent ? "true" : "false");
+
     return c.json(
       {
         productId: result.productId,
       },
-      201
+      result.idempotent ? 200 : 201
     );
   } catch (error) {
     console.error("[catalog] failed to create product", error);

@@ -84,14 +84,34 @@ export const productCategories = catalog.table(
   {
     productId: text("product_id")
       .notNull()
-      .references(() => products.id, { onDelete: "cascade" })
-      .primaryKey(),
+      .references(() => products.id, { onDelete: "cascade" }),
     categoryId: text("category_id")
       .notNull()
-      .references(() => categories.id, { onDelete: "cascade" })
-      .primaryKey(),
+      .references(() => categories.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  }
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.productId, table.categoryId] }),
+  })
+);
+
+export const catalogIdempotencyKeys = catalog.table(
+  "idempotency_keys",
+  {
+    id: text("id").primaryKey(),
+    key: text("key").notNull(),
+    operation: text("operation").notNull(),
+    status: text("status").default("processing").notNull(),
+    responsePayload: jsonb("response_payload").$type<Record<string, unknown> | null>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => ({
+    keyOperationIdx: uniqueIndex("catalog_idempotency_key_operation_idx").on(table.key, table.operation),
+  })
 );
 
 export const catalogOutboxEvents = pgTable("catalog_outbox_events", {

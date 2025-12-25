@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
+import { and, eq } from "drizzle-orm";
 import db from "../db/index.js";
 import {
+  catalogIdempotencyKeys,
   catalogOutboxEvents,
   categories,
   media,
@@ -19,14 +21,36 @@ type CreateProductOptions = {
   idempotencyKey?: string;
 };
 
+const CREATE_PRODUCT_OPERATION = "catalog.create_product";
+
+type TransactionClient = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+type CreateProductResult = {
+  productId: string;
+  idempotent: boolean;
+};
+
 export async function createProduct(
   input: CreateProductInput,
   options: CreateProductOptions = {}
-): Promise<{ productId: string }> {
+): Promise<CreateProductResult> {
   const now = new Date();
   const productId = randomUUID();
 
-  await db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
+    if (options.idempotencyKey) {
+      const idempotency = await ensureIdempotencyRecord(
+        tx,
+        options.idempotencyKey,
+        CREATE_PRODUCT_OPERATION,
+        now
+      );
+
+      if (idempotency?.status === "replay") {
+        return { productId: idempotency.response.productId, idempotent: true } satisfies CreateProductResult;
+      }
+    }
+
     await tx.insert(products).values({
       id: productId,
       title: input.title,
@@ -154,7 +178,87 @@ export async function createProduct(
       createdAt: now,
       updatedAt: now,
     });
+    if (options.idempotencyKey) {
+      await markIdempotencyRecordCompleted(tx, options.idempotencyKey, CREATE_PRODUCT_OPERATION, {
+        productId,
+      });
+    }
+
+    return { productId, idempotent: false } satisfies CreateProductResult;
   });
 
-  return { productId };
+  return result;
+}
+
+type IdempotencyEnsureResult =
+  | { status: "new" }
+  | { status: "replay"; response: { productId: string } };
+
+async function ensureIdempotencyRecord(
+  tx: TransactionClient,
+  key: string,
+  operation: string,
+  now: Date
+): Promise<IdempotencyEnsureResult> {
+  const inserted = await tx
+    .insert(catalogIdempotencyKeys)
+    .values({
+      id: randomUUID(),
+      key,
+      operation,
+      status: "processing",
+      responsePayload: null,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoNothing({
+      target: [catalogIdempotencyKeys.key, catalogIdempotencyKeys.operation],
+    })
+    .returning({ id: catalogIdempotencyKeys.id });
+
+  if (inserted.length > 0) {
+    return { status: "new" };
+  }
+
+  const existing = await tx
+    .select()
+    .from(catalogIdempotencyKeys)
+    .where(
+      and(
+        eq(catalogIdempotencyKeys.key, key),
+        eq(catalogIdempotencyKeys.operation, operation)
+      )
+    )
+    .limit(1);
+
+  const record = existing.at(0);
+  if (record && record.status === "completed" && record.responsePayload) {
+    return {
+      status: "replay",
+      response: record.responsePayload as { productId: string },
+    };
+  }
+
+  throw new Error("Idempotent request is already processing");
+}
+
+async function markIdempotencyRecordCompleted(
+  tx: TransactionClient,
+  key: string,
+  operation: string,
+  response: { productId: string }
+): Promise<void> {
+  await tx
+    .update(catalogIdempotencyKeys)
+    .set({
+      status: "completed",
+      responsePayload: response,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(catalogIdempotencyKeys.key, key),
+        eq(catalogIdempotencyKeys.operation, operation)
+      )
+    );
 }
