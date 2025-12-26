@@ -12,7 +12,8 @@
     "db:push": "pnpm exec drizzle-kit push",
     "worker:outbox": "tsx src/workers/run-inventory-outbox-publisher.ts",
     "worker:reservations": "tsx src/workers/run-reservation-expirer.ts",
-    "worker:orders": "tsx src/workers/run-order-events-consumer.ts"
+    "worker:orders": "tsx src/workers/run-order-events-consumer.ts",
+    "test": "DEBUG=testcontainers* vitest"
   },
   "dependencies": {
     "@ecommerce/core": "workspace:*",

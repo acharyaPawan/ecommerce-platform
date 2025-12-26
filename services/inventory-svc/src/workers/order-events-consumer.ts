@@ -26,12 +26,12 @@ export class OrderEventsConsumer {
     console.log(`${WORKER_NAME} initializing (queue=${this.queueName})`);
     await this.broker.subscribe({
       queue: this.queueName,
-      routingKey: "domain.orders.#",
+      routingKey: "orders.#",
       handler: this.onMessage,
     });
     await this.broker.subscribe({
       queue: this.queueName,
-      routingKey: "domain.payments.#",
+      routingKey: "payments.#",
       handler: this.onMessage,
     });
     console.log(`${WORKER_NAME} listening for order + payment events`);

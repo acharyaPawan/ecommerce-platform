@@ -34,10 +34,9 @@ export const inventoryReservations = inventory.table(
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
-  },
-  (table) => ({
-    pk: primaryKey({ columns: [table.reservationId, table.sku] }),
-  })
+  }, (t) => [
+    primaryKey({columns: [t.reservationId, t.sku]})
+]
 );
 
 export const inventoryProcessedMessages = inventory.table("processed_messages", {
@@ -46,7 +45,7 @@ export const inventoryProcessedMessages = inventory.table("processed_messages", 
   processedAt: timestamp("processed_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const inventoryOutboxEvents = pgTable("inventory_outbox_events", {
+export const inventoryOutboxEvents = inventory.table("inventory_outbox_events", {
   id: text("id").primaryKey(),
   type: text("type").notNull(),
   aggregateId: text("aggregate_id").notNull(),
