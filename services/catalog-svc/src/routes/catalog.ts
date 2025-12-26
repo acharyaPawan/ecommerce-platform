@@ -3,7 +3,7 @@ import { createProduct } from "../catalog/service.js";
 import { createProductSchema } from "../catalog/schemas.js";
 
 export const catalogApi = new Hono();
-
+  
 catalogApi.post("/products", async (c) => {
   let body: unknown;
   try {
