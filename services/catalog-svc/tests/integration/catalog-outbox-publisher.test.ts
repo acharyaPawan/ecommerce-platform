@@ -5,7 +5,7 @@ import { RabbitMqClient } from "@ecommerce/message-broker";
 import type { EventEnvelope } from "@ecommerce/events";
 import { randomUUID } from "node:crypto";
 import { catalogOutboxEvents } from "../../src/db/schema";
-import { CatalogEventType, makeCatalogEnvelope } from "../../src/catalog/events";
+import { CatalogEventType, makeCatalogEnvelope, type ProductCreatedV1 } from "../../src/catalog/events";
 import { mapCatalogEventToOutboxRecord } from "../../src/catalog/outbox";
 import {
   applyMigrations,
@@ -65,8 +65,9 @@ describe("CatalogOutboxPublisherWorker", () => {
         prefetch: 1,
       });
 
-      const received: EventEnvelope<Record<string, unknown>>[] = [];
-      await consumerClient.subscribe({
+      type CatalogIntegrationEvent = EventEnvelope<ProductCreatedV1["payload"]>;
+      const received: CatalogIntegrationEvent[] = [];
+      await consumerClient.subscribe<ProductCreatedV1["payload"]>({
         queue: randomQueueName("catalog.events.consumer.queue"),
         routingKey: "catalog.#",
         handler: async (event) => {

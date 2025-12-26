@@ -5,7 +5,7 @@ import { RabbitMQContainer, type StartedRabbitMQContainer } from "@testcontainer
 import { RabbitMqClient } from "@ecommerce/message-broker";
 import type { EventEnvelope } from "@ecommerce/events";
 import { randomUUID } from "node:crypto";
-import { CatalogEventType } from "../../src/catalog/events";
+import { CatalogEventType, type ProductCreatedV1 } from "../../src/catalog/events";
 import { catalogOutboxEvents } from "../../src/db/schema";
 import {
   applyMigrations,
@@ -32,7 +32,8 @@ describe("Catalog create product flow", () => {
   let worker: InstanceType<CatalogOutboxPublisherWorkerClass>;
   let workerPromise: Promise<void> | undefined;
   let subscriberClient: RabbitMqClient;
-  const receivedEvents: EventEnvelope<Record<string, unknown>>[] = [];
+  type CatalogIntegrationEvent = EventEnvelope<ProductCreatedV1["payload"]>;
+  const receivedEvents: CatalogIntegrationEvent[] = [];
 
   beforeAll(async () => {
     const docker = await setupDockerTestDb();
@@ -72,7 +73,7 @@ describe("Catalog create product flow", () => {
       queue: randomQueueName("catalog.events.subscriber"),
       prefetch: 1,
     });
-    await subscriberClient.subscribe({
+    await subscriberClient.subscribe<ProductCreatedV1["payload"]>({
       queue: randomQueueName("catalog.events.subscriber.queue"),
       routingKey: "catalog.#",
       handler: async (event) => {
