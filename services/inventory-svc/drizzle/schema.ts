@@ -1,2 +1,1 @@
-// Drizzle schema placeholder for inventory-svc.
-export const inventory_svcPlaceholderTable = {};
+export * from "../src/db/schema.js";
