@@ -1,7 +1,8 @@
 import type { Route } from "next"
 import Link from "next/link"
 
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 type NavLink = {
   href: { pathname: Route; hash?: string }
@@ -32,12 +33,18 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href={{ pathname: "/", hash: "stories" }}>Journal</Link>
-          </Button>
-          <Button size="sm" asChild>
-            <Link href={{ pathname: "/", hash: "waitlist" }}>Book a fitting</Link>
-          </Button>
+          <Link
+            href={{ pathname: "/", hash: "stories" }}
+            className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
+          >
+            Journal
+          </Link>
+          <Link
+            href={{ pathname: "/", hash: "waitlist" }}
+            className={cn(buttonVariants({ size: "sm" }))}
+          >
+            Book a fitting
+          </Link>
         </div>
       </div>
     </header>
