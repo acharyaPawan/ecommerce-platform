@@ -1,4 +1,4 @@
-import { pgSchema, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core"
+import { pgSchema, text, timestamp, uuid } from "drizzle-orm/pg-core"
 
 const frontend = pgSchema('frontend')
 

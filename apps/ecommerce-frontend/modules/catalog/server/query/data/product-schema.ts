@@ -5,7 +5,6 @@ import {
   jsonb,
   numeric,
   pgSchema,
-  pgTable,
   text,
   timestamp,
   uuid,
