@@ -43,6 +43,7 @@ export const registerCheckoutRoutes = (app: Hono<GatewayBindings>) => {
         searchParams: {
           sku: skus,
         },
+        forwardAuth: true,
       }),
       callService<unknown>(c, 'fulfillment', {
         method: 'GET',

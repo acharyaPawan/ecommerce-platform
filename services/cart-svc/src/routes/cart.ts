@@ -22,7 +22,7 @@ import {
 } from "../cart/errors.js";
 import type { IdempotencyStore, StoredIdempotentResponse } from "../infra/idempotency-store.js";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { createUserResolver, type UserResolver } from "../auth/user-context.js";
+import { createUserResolver, type UserResolver } from "@ecommerce/core";
 
 type CartRouterDeps = {
   cartService: CartService;
@@ -34,7 +34,7 @@ export function createCartRouter({ cartService, idempotencyStore, config }: Cart
   const router = new Hono();
   const addItemSchema = createAddItemSchema(config.maxQtyPerItem);
   const updateItemSchema = createUpdateItemSchema(config.maxQtyPerItem);
-  const resolveUser = createUserResolver(config);
+  const resolveUser = createUserResolver(config.auth);
 
   router.get("/", async (c) => {
     const context = await parseCartContext(c, resolveUser);

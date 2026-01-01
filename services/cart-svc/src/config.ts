@@ -1,3 +1,5 @@
+import { loadAuthConfig, type AuthConfig } from "@ecommerce/core";
+
 const DEFAULT_CART_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
 const DEFAULT_IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60; // 24 hours
 
@@ -13,12 +15,7 @@ export type ServiceConfig = {
   snapshotSecret: string;
   catalogServiceUrl?: string;
   ordersServiceUrl?: string;
-  auth: {
-    jwksUrl?: string;
-    audience?: string;
-    issuer?: string;
-    devUserHeader: string;
-  };
+  auth: AuthConfig;
 };
 
 export function loadConfig(): ServiceConfig {
@@ -47,12 +44,14 @@ export function loadConfig(): ServiceConfig {
     snapshotSecret: process.env.CART_SNAPSHOT_SECRET ?? "cart-snapshot-secret",
     catalogServiceUrl: process.env.CATALOG_SERVICE_URL,
     ordersServiceUrl: process.env.ORDERS_SERVICE_URL,
-    auth: {
-      jwksUrl: resolveJwksUrl(),
-      audience: optionalEnv("AUTH_JWT_AUDIENCE"),
-      issuer: optionalEnv("AUTH_JWT_ISSUER"),
-      devUserHeader: process.env.AUTH_DEV_USER_HEADER?.trim() || "x-user-id",
-    },
+    auth: loadAuthConfig({
+      deriveJwksFromIam: {
+        iamUrl: process.env.IAM_SERVICE_URL,
+      },
+      defaults: {
+        devUserHeader: "x-user-id",
+      },
+    }),
   };
 }
 
@@ -67,29 +66,4 @@ function parseNumber(value: string | undefined, fallback: number): number {
   }
 
   return parsed;
-}
-
-function optionalEnv(name: string): string | undefined {
-  const value = process.env[name];
-  if (!value) {
-    return undefined;
-  }
-  const trimmed = value.trim();
-  return trimmed.length ? trimmed : undefined;
-}
-
-function resolveJwksUrl(): string | undefined {
-  const explicit = optionalEnv("AUTH_JWKS_URL");
-  if (explicit) {
-    return explicit;
-  }
-  const iamUrl = optionalEnv("IAM_SERVICE_URL");
-  if (!iamUrl) {
-    return undefined;
-  }
-  return `${stripTrailingSlash(iamUrl)}/api/auth/jwks`;
-}
-
-function stripTrailingSlash(input: string): string {
-  return input.endsWith("/") ? input.slice(0, -1) : input;
 }

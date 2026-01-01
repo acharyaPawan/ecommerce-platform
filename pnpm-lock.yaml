@@ -33,7 +33,11 @@ importers:
         specifier: ^4.0.16
         version: 4.0.16(@types/node@20.19.24)(@vitest/ui@4.0.16)(tsx@4.20.6)(yaml@2.8.2)
 
-  packages/core: {}
+  packages/core:
+    dependencies:
+      jose:
+        specifier: ^5.8.0
+        version: 5.10.0
 
   packages/events:
     dependencies:
@@ -79,9 +83,6 @@ importers:
       ioredis:
         specifier: ^5.4.1
         version: 5.8.2
-      jose:
-        specifier: ^5.8.0
-        version: 5.10.0
       zod:
         specifier: ^3.23.8
         version: 3.25.76
