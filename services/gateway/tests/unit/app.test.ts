@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createApp } from '../../src/app';
+import { createApp } from '../../src/app.js';
 
 describe('gateway app', () => {
   it('returns ok from root endpoint', async () => {

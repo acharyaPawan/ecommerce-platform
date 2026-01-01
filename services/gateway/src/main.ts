@@ -1,19 +1,25 @@
 import { serve } from '@hono/node-server';
-import { createApp } from './app';
+import { createApp } from './app.js';
+import { loadConfig } from './config.js';
+import { createLogger } from './logger.js';
 
-async function bootstrap() {
+const bootstrap = async () => {
+  const config = loadConfig();
+  const logger = createLogger({ name: 'gateway', level: config.logLevel });
   const app = await createApp();
-  const port = Number(process.env.PORT ?? 8080);
 
   serve({
     fetch: app.fetch,
-    port
+    port: config.port,
   });
 
-  console.log(`[gateway] listening on port ${port}`);
-}
+  logger.info('gateway.started', {
+    port: config.port,
+    env: config.env,
+  });
+};
 
-bootstrap().catch((err) => {
-  console.error('[gateway] failed to bootstrap', err);
+bootstrap().catch((error) => {
+  console.error(error);
   process.exit(1);
 });
