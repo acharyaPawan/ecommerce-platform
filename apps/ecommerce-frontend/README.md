@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## Forma Supply Frontend
 
-## Getting Started
+Next.js 16 storefront for the ecommerce platform. The app router is wired into feature modules so catalog/UI logic stays isolated from infra concerns.
 
-First, run the development server:
+### Run locally
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Environment flags:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `DATABASE_URL` – optional Postgres connection for Drizzle powered reads/writes.
+- `GATEWAY_BASE_URL` or `NEXT_PUBLIC_GATEWAY_BASE_URL` – base URL for cart mutations via the gateway service.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Module layout
 
-## Learn More
+```
+modules/
+  catalog/
+    components/{views,sections,layout,ui}
+    lib/… (nuqs parsers, DTO mappers)
+    server/
+      query/{data,dsl,dto,service}
+      mutation/…
+  account/
+    components/sections/…
+    server/query/{data,dto,service}
+    server/mutation/join-waitlist.ts
+  cart/
+    components/ui/add-to-cart-button.tsx
+    server/mutation/add-to-cart.ts
+```
 
-To learn more about Next.js, take a look at the following resources:
+Shared providers, HTTP clients, and Drizzle connectors live under `lib/`. Base UI primitives (buttons, cards, select, etc.) sit in `components/ui`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Database tooling
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Drizzle powers the typed queries/mutations. Generate artifacts or push schema changes via:
 
-## Deploy on Vercel
+```bash
+pnpm db:generate
+pnpm db:push
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The `drizzle.config.ts` file scans `modules/**/server/query/data/*-schema.ts` so each feature can own its storage shape.

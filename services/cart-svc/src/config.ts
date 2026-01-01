@@ -28,7 +28,7 @@ export function loadConfig(): ServiceConfig {
 
   return {
     serviceName: "cart-svc",
-    port: parseNumber(process.env.PORT, 3000),
+    port: parseNumber(process.env.PORT, 3004),
     redisUrl,
     defaultCurrency: (process.env.CART_DEFAULT_CURRENCY ?? "USD").toUpperCase(),
     cartTtlSeconds: parseNumber(process.env.CART_TTL_SECONDS, DEFAULT_CART_TTL_SECONDS),

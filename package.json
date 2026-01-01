@@ -4,11 +4,11 @@
   "private": true,
   "packageManager": "pnpm@10.18.3",
   "scripts": {
-    "dev": "pnpm -r --parallel dev",
-    "build": "pnpm -r build",
-    "lint": "pnpm -r lint --if-present",
-    "test": "pnpm -r test --if-present",
-    "clean": "pnpm -r exec rm -rf dist"
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "clean": "turbo run clean"
   },
   "devDependencies": {
     "@testcontainers/postgresql": "^11.10.0",
@@ -16,6 +16,7 @@
     "@types/node": "^20.19.24",
     "@vitest/ui": "^4.0.16",
     "json-schema-to-ts": "^3.1.1",
+    "turbo": "^2.7.2",
     "typescript": "^5.9.3",
     "vite": "^7.3.0",
     "vitest": "^4.0.16"
