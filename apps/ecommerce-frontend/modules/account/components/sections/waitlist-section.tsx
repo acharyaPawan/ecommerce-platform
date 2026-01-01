@@ -44,7 +44,8 @@ export function WaitlistSection({ insights }: WaitlistSectionProps) {
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle")
 
   const form = useForm<WaitlistFormValues>({
-    resolver: zodResolver(waitlistFormSchema),
+    // hookform resolver typings still reference Zod v3, so we coerce here while using Zod v4 runtime.
+    resolver: zodResolver(waitlistFormSchema as never),
     defaultValues: { intent: "retail", email: "", company: "", notes: "" },
   })
 
@@ -94,7 +95,12 @@ export function WaitlistSection({ insights }: WaitlistSectionProps) {
               onValueChange={(value) => form.setValue("intent", value as WaitlistFormValues["intent"])}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select initiative" />
+                <SelectValue>
+                  {(current: string | null) => {
+                    const label = intents.find((intent) => intent.value === current)?.label
+                    return label ?? <span className="text-muted-foreground">Select initiative</span>
+                  }}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {intents.map((intent) => (

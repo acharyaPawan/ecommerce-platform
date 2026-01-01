@@ -8,6 +8,9 @@ type StoryCardProps = {
 }
 
 export function StoryCard({ story }: StoryCardProps) {
+  const slug = story.ctaHref.replace(/^\/stories\//, "") || story.id
+  const storyHref = `/stories/${slug}` as `/stories/${string}`
+
   return (
     <article className="space-y-4 border border-border/60 bg-card/80 p-6">
       <div className="relative aspect-[3/2] overflow-hidden rounded-xl border border-border/60">
@@ -18,7 +21,7 @@ export function StoryCard({ story }: StoryCardProps) {
         <h3 className="text-xl font-semibold">{story.title}</h3>
         <p className="text-sm text-muted-foreground">{story.description}</p>
       </div>
-      <Link href={story.ctaHref} className="text-sm font-semibold text-primary hover:underline">
+      <Link href={storyHref} className="text-sm font-semibold text-primary hover:underline">
         {story.ctaLabel} →
       </Link>
     </article>

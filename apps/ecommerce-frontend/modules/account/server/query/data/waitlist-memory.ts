@@ -1,4 +1,4 @@
-import { type WaitlistSignupRecord } from "./waitlist-schema"
+import { type WaitlistSignupRecord } from "@/db/schemas/account"
 
 const waitlistInMemoryStore: WaitlistSignupRecord[] = []
 

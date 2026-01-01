@@ -10,8 +10,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 
-const frontend = pgSchema('frontend')
-
+const frontend = pgSchema("frontend")
 
 export const productTable = frontend.table("products", {
   id: uuid("id").primaryKey().defaultRandom(),

@@ -1,4 +1,4 @@
-import { type CollectionRecord, type EditorialRecord, type ProductRecord } from "./product-schema"
+import { type CollectionRecord, type EditorialRecord, type ProductRecord } from "@/db/schemas/catalog"
 
 export const productShowcase: ProductRecord[] = [
   {

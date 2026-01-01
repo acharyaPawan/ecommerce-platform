@@ -1,11 +1,11 @@
 import { cache } from "react"
 
-import { desc, sql } from "drizzle-orm"
+import { count, desc, sql } from "drizzle-orm"
 
+import { waitlistSignupTable } from "@/db/schemas/account"
 import { db } from "@/lib/drizzle/client"
 
 import { getWaitlistMemory } from "../data/waitlist-memory"
-import { waitlistSignupTable } from "../data/waitlist-schema"
 
 export type WaitlistInsights = {
   totalSignups: number
@@ -21,7 +21,7 @@ export const getWaitlistInsights = cache(async (): Promise<WaitlistInsights> => 
     }
   }
 
-  const [countRow] = await db.select({ value: sql<number>`count(*)` }).from(waitlistSignupTable)
+  const [countRow] = await db.select({ value: count() }).from(waitlistSignupTable)
   const recents = await db
     .select({
       company: waitlistSignupTable.company,

@@ -1,9 +1,16 @@
-import { productDtoSchema, type CollectionDTO, collectionDtoSchema, type EditorialDTO, editorialDtoSchema, type ProductDTO } from "@/modules/catalog/server/query/dto/product-dto"
+import {
+  productDtoSchema,
+  type CollectionDTO,
+  collectionDtoSchema,
+  type EditorialDTO,
+  editorialDtoSchema,
+  type ProductDTO,
+} from "@/modules/catalog/server/query/dto/product-dto"
 import {
   type CollectionRecord,
   type EditorialRecord,
   type ProductRecord,
-} from "@/modules/catalog/server/query/data/product-schema"
+} from "@/db/schemas/catalog"
 
 export function mapProductRecord(record: ProductRecord): ProductDTO {
   return productDtoSchema.parse({

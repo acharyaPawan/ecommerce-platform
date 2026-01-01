@@ -1,5 +1,8 @@
 import { cache } from "react"
 
+import { sql } from "drizzle-orm"
+
+import { collectionTable, editorialTable, productTable } from "@/db/schemas/catalog"
 import { db } from "@/lib/drizzle/client"
 import { type CatalogSearchState } from "@/modules/catalog/lib/catalog-search-params"
 import {
@@ -13,7 +16,6 @@ import {
   editorialStories,
   productShowcase,
 } from "../data/product-static"
-import { collectionTable, editorialTable, productTable } from "../data/product-schema"
 import { buildProductFilterClause, buildProductOrdering } from "../dsl/product-dsl"
 import {
   type CollectionDTO,
@@ -53,17 +55,14 @@ async function loadProducts(filters: CatalogSearchState): Promise<ProductDTO[]> 
   }
 
   try {
-    let query = db.select().from(productTable)
-
     const clause = buildProductFilterClause(filters)
-    if (clause) {
-      query = query.where(clause)
-    }
-
     const orderBy = buildProductOrdering(filters.sort)
-    query = query.orderBy(...orderBy).limit(12)
-
-    const rows = await query
+    const rows = await db
+      .select()
+      .from(productTable)
+      .where(clause ?? sql`true`)
+      .orderBy(...orderBy)
+      .limit(12)
     if (!rows.length) {
       return productShowcase.map(mapProductRecord)
     }

@@ -2,7 +2,8 @@ import Image from "next/image"
 import Link from "next/link"
 
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 import { type ProductDTO } from "@/modules/catalog/server/query/dto/product-dto"
 
@@ -34,12 +35,12 @@ export function HeroSection({ product }: HeroSectionProps) {
           <span>{product.inventory} in stock</span>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button asChild>
-            <Link href="#catalog">Build your kit</Link>
-          </Button>
-          <Button variant="ghost" asChild>
-            <Link href="#collections">View floor sets</Link>
-          </Button>
+          <Link href="#catalog" className={cn(buttonVariants())}>
+            Build your kit
+          </Link>
+          <Link href="#collections" className={cn(buttonVariants({ variant: "ghost" }))}>
+            View floor sets
+          </Link>
         </div>
       </div>
       <figure className="relative aspect-square overflow-hidden rounded-3xl border border-border/70">

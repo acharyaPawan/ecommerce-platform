@@ -1,25 +1,28 @@
-import { SQL, and, asc, desc, ilike, or, sql } from "drizzle-orm"
+import { SQL, and, asc, desc, ilike, or } from "drizzle-orm"
+import { arrayOverlaps } from "drizzle-orm/sql/expressions/conditions"
 
+import { productTable } from "@/db/schemas/catalog"
 import { type CatalogSearchState } from "@/modules/catalog/lib/catalog-search-params"
-
-import { productTable } from "../data/product-schema"
 
 export function buildProductFilterClause(filters: CatalogSearchState): SQL | undefined {
   const clauses: SQL[] = []
 
   if (filters.q) {
     const likeValue = `%${filters.q}%`
-    clauses.push(
-      or(
-        ilike(productTable.name, likeValue),
-        ilike(productTable.shortDescription, likeValue),
-        ilike(productTable.category, likeValue)
-      )
+    const searchClause = or(
+      ilike(productTable.name, likeValue),
+      ilike(productTable.shortDescription, likeValue),
+      ilike(productTable.category, likeValue)
     )
+
+    if (searchClause) {
+      clauses.push(searchClause)
+    }
   }
 
-  if (filters.tags?.length) {
-    clauses.push(sql`${productTable.tags} && ${filters.tags}`)
+  const tags = filters.tags
+  if (tags.length) {
+    clauses.push(arrayOverlaps(productTable.tags, tags))
   }
 
   return clauses.length ? and(...clauses) : undefined

@@ -1,6 +1,6 @@
 import { pgSchema, text, timestamp, uuid } from "drizzle-orm/pg-core"
 
-const frontend = pgSchema('frontend')
+const frontend = pgSchema("frontend")
 
 export const waitlistSignupTable = frontend.table("waitlist_signups", {
   id: uuid("id").primaryKey().defaultRandom(),

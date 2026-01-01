@@ -5,9 +5,12 @@ import { useQueryStates } from "nuqs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
-import { catalogSearchParsers } from "@/modules/catalog/lib/catalog-search-params"
+import {
+  catalogSearchParsers,
+  type CatalogSearchState,
+} from "@/modules/catalog/lib/catalog-search-params"
 
-const sortOptions = [
+const sortOptions: Array<{ value: CatalogSearchState["sort"]; label: string }> = [
   { value: "featured", label: "Featured" },
   { value: "new", label: "New arrivals" },
   { value: "price-asc", label: "Price ↑" },

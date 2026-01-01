@@ -3,10 +3,10 @@
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
+import { waitlistSignupTable } from "@/db/schemas/account"
 import { db } from "@/lib/drizzle/client"
 
 import { addWaitlistMemoryEntry } from "../query/data/waitlist-memory"
-import { waitlistSignupTable } from "../query/data/waitlist-schema"
 import { waitlistSubmissionSchema } from "../query/dto/waitlist-dto"
 
 const waitlistActionSchema = waitlistSubmissionSchema.extend({
