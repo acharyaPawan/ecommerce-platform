@@ -1,5 +1,10 @@
-import { parseAsArrayOf, parseAsString, parseAsStringEnum } from "nuqs"
-import { createSearchParamsCache, inferParserType } from "nuqs/server"
+import {
+  createSearchParamsCache,
+  inferParserType,
+  parseAsArrayOf,
+  parseAsString,
+  parseAsStringEnum,
+} from "nuqs/server"
 
 export const catalogSearchParsers = {
   q: parseAsString.withDefault(""),
