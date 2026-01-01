@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { CartService } from "./cart/service.js";
+import type { OrdersClient, PricingProvider } from "./cart/ports.js";
 import type { ServiceConfig } from "./config.js";
 import { loadConfig } from "./config.js";
 import { createRedisClient, type RedisClient } from "./infra/redis.js";
@@ -8,6 +9,8 @@ import { RedisIdempotencyStore } from "./infra/idempotency-store.js";
 import type { CartStore } from "./cart/store.js";
 import type { IdempotencyStore } from "./infra/idempotency-store.js";
 import { createCartRouter } from "./routes/cart.js";
+import { HttpCatalogPricingProvider } from "./clients/catalog-pricing.js";
+import { HttpOrdersClient } from "./clients/orders.js";
 
 export type AppDependencies = {
   config?: ServiceConfig;
@@ -15,6 +18,8 @@ export type AppDependencies = {
   cartStore?: CartStore;
   idempotencyStore?: IdempotencyStore;
   cartService?: CartService;
+  pricingProvider?: PricingProvider;
+  ordersClient?: OrdersClient;
 };
 
 export type CartApp = ReturnType<typeof decorateApp>;
@@ -36,13 +41,22 @@ export async function createApp(deps: AppDependencies = {}): Promise<CartApp> {
       ttlSeconds: config.idempotencyTtlSeconds,
     });
 
+  const pricingProvider =
+    deps.pricingProvider ??
+    (config.catalogServiceUrl ? new HttpCatalogPricingProvider({ baseUrl: config.catalogServiceUrl }) : undefined);
+
+  const ordersClient =
+    deps.ordersClient ??
+    (config.ordersServiceUrl ? new HttpOrdersClient({ baseUrl: config.ordersServiceUrl }) : undefined);
+
   const cartService =
     deps.cartService ??
     new CartService(cartStore, {
       defaultCurrency: config.defaultCurrency,
       maxQtyPerItem: config.maxQtyPerItem,
       snapshotSecret: config.snapshotSecret,
-      ordersServiceUrl: config.ordersServiceUrl,
+      pricingProvider,
+      ordersClient,
     });
 
   const app = new Hono()

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createTestApp } from '../helpers/test-app.js';
+import type { PricingProvider, OrdersClient } from '../../src/cart/ports.js';
+import type { CartSnapshot } from '../../src/cart/types.js';
 
 describe('cart HTTP flows', () => {
   it('creates, updates, and checks out an anonymous cart', async () => {
@@ -87,6 +89,68 @@ describe('cart HTTP flows', () => {
       expect(second.headers.get('x-idempotent-replay')).toBe('true');
       const payload = await second.json();
       expect(payload.items[0].qty).toBe(1);
+    } finally {
+      await app.dispose();
+    }
+  });
+
+  it('refreshes pricing during checkout and forwards snapshot to orders', async () => {
+    const quotedSkus: string[] = [];
+    const pricingProvider: PricingProvider = {
+      async quote(items) {
+        quotedSkus.push(...items.map((item) => item.sku));
+        return items.map((item, index) => ({
+          sku: item.sku,
+          variantId: item.variantId ?? undefined,
+          unitPriceCents: 1000 + index * 250,
+          currency: 'USD',
+          title: `Item ${item.sku}`,
+        }));
+      },
+    };
+
+    const receivedSnapshots: CartSnapshot[] = [];
+    const ordersClient: OrdersClient = {
+      async placeOrder(snapshot) {
+        receivedSnapshots.push(snapshot);
+        return { orderId: 'order-123' };
+      },
+    };
+
+    const { app } = await createTestApp({ pricingProvider, ordersClient });
+    try {
+      const addRes = await app.request('/api/cart/items', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'idempotency-key': 'pricing-flow-add',
+        },
+        body: JSON.stringify({ sku: 'sku-abc', qty: 2 }),
+      });
+      expect(addRes.status).toBe(201);
+      const cartId = addRes.headers.get('x-cart-id');
+      expect(cartId).toBeTruthy();
+
+      const checkoutRes = await app.request('/api/cart/checkout', {
+        method: 'POST',
+        headers: {
+          'x-cart-id': cartId!,
+          'idempotency-key': 'pricing-flow-checkout',
+        },
+      });
+      expect(checkoutRes.status).toBe(200);
+      const checkoutPayload = await checkoutRes.json<{
+        snapshot: { items: Array<{ unitPriceCents?: number | null }>; totals: { subtotalCents: number | null } };
+        orderId?: string;
+      }>();
+
+      expect(checkoutPayload.orderId).toBe('order-123');
+      expect(checkoutPayload.snapshot.items[0].unitPriceCents).toBe(1000);
+      expect(checkoutPayload.snapshot.totals.subtotalCents).toBe(2000);
+      expect(quotedSkus).toContain('SKU-ABC');
+      expect(receivedSnapshots).toHaveLength(1);
+      expect(receivedSnapshots[0].snapshotId).toBeTruthy();
+      expect(receivedSnapshots[0].items[0].unitPriceCents).toBe(1000);
     } finally {
       await app.dispose();
     }

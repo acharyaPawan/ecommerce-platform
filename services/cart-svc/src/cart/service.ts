@@ -1,8 +1,15 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { CartCheckoutError, CartItemNotFoundError, CartNotFoundError, CartValidationError } from "./errors.js";
 import type { CartStore } from "./store.js";
-import type { Cart, CartItem } from "./types.js";
+import type {
+  Cart,
+  CartItem,
+  CartSnapshot,
+  CartSnapshotItem,
+  CartPricingSnapshot,
+} from "./types.js";
 import { computeCartTotals } from "./types.js";
+import type { PricingProvider, OrdersClient, PricingQuote } from "./ports.js";
 import type { AddItemPayload, CheckoutPayload, ItemTargetPayload, UpdateItemPayload } from "./validation.js";
 
 export type CartContext = {
@@ -15,24 +22,13 @@ export type CartServiceOptions = {
   defaultCurrency: string;
   maxQtyPerItem: number;
   snapshotSecret: string;
-  ordersServiceUrl?: string;
+  pricingProvider?: PricingProvider;
+  ordersClient?: OrdersClient;
 };
 
 export type CartOperationResult = {
   cart: Cart;
   cartWasCreated: boolean;
-};
-
-export type CartSnapshot = {
-  snapshotId: string;
-  cartId: string;
-  cartVersion: number;
-  currency: string;
-  items: CartItem[];
-  totals: ReturnType<typeof computeCartTotals>;
-  createdAt: string;
-  userId?: string | null;
-  signature: string;
 };
 
 export type CartCheckoutResult = {
@@ -242,7 +238,20 @@ export class CartService {
       throw new CartCheckoutError("Cart is empty");
     }
 
-    const snapshot = this.buildSnapshot(cart);
+    const { items: pricedItems, pricingSnapshot } = await this.computePricingSnapshot(cart);
+    const snapshot = this.buildSnapshot(cart, pricedItems, pricingSnapshot);
+
+    let orderId: string | undefined;
+    if (this.options.ordersClient) {
+      try {
+        const result = await this.options.ordersClient.placeOrder(snapshot);
+        orderId = result.orderId;
+      } catch (error) {
+        console.error("[cart-svc] failed to call orders service", error);
+        throw new CartCheckoutError("Orders service rejected checkout");
+      }
+    }
+
     const clearedCart = await this.store.updateCart(cart.id, (current) => {
       if (!current) {
         throw new CartNotFoundError();
@@ -251,7 +260,7 @@ export class CartService {
       return {
         ...current,
         items: [],
-        pricingSnapshot: null,
+        pricingSnapshot: pricingSnapshot ?? null,
         status: "checked_out",
       };
     });
@@ -263,6 +272,73 @@ export class CartService {
     return {
       snapshot,
       cart: clearedCart,
+      orderId,
+    };
+  }
+
+  private async computePricingSnapshot(cart: Cart): Promise<{
+    items: CartSnapshotItem[];
+    pricingSnapshot: CartPricingSnapshot | null;
+  }> {
+    if (!this.options.pricingProvider) {
+      return {
+        items: cart.items.map((item) => ({ ...item })),
+        pricingSnapshot: null,
+      };
+    }
+
+    let quotes: PricingQuote[];
+    try {
+      quotes = await this.options.pricingProvider.quote(cart.items);
+    } catch (error) {
+      console.error("[cart-svc] pricing provider failed", error);
+      throw new CartCheckoutError("Failed to refresh pricing");
+    }
+
+    const normalizedQuotes = quotes.map((quote) => ({
+      ...quote,
+      sku: normalizeSku(quote.sku),
+      variantId: normalizeNullable(quote.variantId),
+      selectedOptions: normalizeSelectedOptions(quote.selectedOptions),
+    }));
+
+    const priceByKey = new Map(normalizedQuotes.map((quote) => [this.buildItemKey(quote), quote]));
+    const pricedItems: CartSnapshotItem[] = [];
+    let currency: string | null = null;
+    let subtotalCents = 0;
+
+    for (const item of cart.items) {
+      const key = this.buildItemKey(item);
+      const quote = priceByKey.get(key);
+      if (!quote) {
+        throw new CartCheckoutError(`Missing pricing for SKU ${item.sku}`);
+      }
+      if (currency && quote.currency !== currency) {
+        throw new CartCheckoutError("Pricing currency mismatch detected");
+      }
+      currency = currency ?? quote.currency;
+
+      pricedItems.push({
+        ...item,
+        unitPriceCents: quote.unitPriceCents,
+        currency: quote.currency,
+        title: quote.title ?? null,
+      });
+      subtotalCents += quote.unitPriceCents * item.qty;
+    }
+
+    const totals = computeCartTotals(cart);
+    const pricingSnapshot: CartPricingSnapshot = {
+      subtotalCents,
+      currency: currency ?? cart.currency,
+      itemCount: totals.itemCount,
+      totalQuantity: totals.totalQuantity,
+      computedAt: new Date().toISOString(),
+    };
+
+    return {
+      items: pricedItems,
+      pricingSnapshot,
     };
   }
 
@@ -344,17 +420,26 @@ export class CartService {
     return `${item.sku.toLowerCase()}|${variant}|${options}`;
   }
 
-  private buildSnapshot(cart: Cart): CartSnapshot {
+  private buildSnapshot(
+    cart: Cart,
+    items: CartSnapshotItem[],
+    pricingSnapshot: CartPricingSnapshot | null
+  ): CartSnapshot {
     const totals = computeCartTotals(cart);
     const snapshotBase = {
       snapshotId: randomUUID(),
       cartId: cart.id,
       cartVersion: cart.version,
       currency: cart.currency,
-      items: cart.items,
-      totals,
+      items,
+      totals: {
+        ...totals,
+        subtotalCents: pricingSnapshot?.subtotalCents ?? null,
+        currency: pricingSnapshot?.currency ?? cart.currency,
+      },
       createdAt: new Date().toISOString(),
       userId: cart.userId ?? null,
+      pricingSnapshot,
     };
 
     const signature = createHmac("sha256", this.options.snapshotSecret)

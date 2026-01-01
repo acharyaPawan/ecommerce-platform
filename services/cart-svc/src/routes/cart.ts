@@ -206,6 +206,7 @@ export function createCartRouter({ cartService, idempotencyStore, config }: Cart
       const result = await cartService.checkout(context, parsed.data);
       const response = {
         snapshot: result.snapshot,
+        orderId: result.orderId,
       };
       const status: ContentfulStatusCode = 200;
       setCartHeaders(c, result.cart);

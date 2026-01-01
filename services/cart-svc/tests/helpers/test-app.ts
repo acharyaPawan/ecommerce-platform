@@ -5,8 +5,14 @@ import type { CartStore, CreateCartInput } from '../../src/cart/store.js';
 import type { IdempotencyStore, StoredIdempotentResponse } from '../../src/infra/idempotency-store.js';
 import { createApp } from '../../src/app.js';
 import type { ServiceConfig } from '../../src/config.js';
+import type { PricingProvider, OrdersClient } from '../../src/cart/ports.js';
 
-export async function createTestApp() {
+type CreateTestAppOptions = {
+  pricingProvider?: PricingProvider;
+  ordersClient?: OrdersClient;
+};
+
+export async function createTestApp(options: CreateTestAppOptions = {}) {
   const config: ServiceConfig = {
     serviceName: 'cart-svc',
     port: 0,
@@ -26,7 +32,8 @@ export async function createTestApp() {
     defaultCurrency: config.defaultCurrency,
     maxQtyPerItem: config.maxQtyPerItem,
     snapshotSecret: config.snapshotSecret,
-    ordersServiceUrl: config.ordersServiceUrl,
+    pricingProvider: options.pricingProvider,
+    ordersClient: options.ordersClient,
   });
 
   const app = await createApp({ config, cartStore, idempotencyStore, cartService });

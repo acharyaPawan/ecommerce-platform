@@ -16,6 +16,17 @@ export type CartPricingSnapshot = {
   computedAt: string;
 };
 
+export type CartSnapshotItem = CartItem & {
+  unitPriceCents?: number | null;
+  currency?: string | null;
+  title?: string | null;
+};
+
+export type CartSnapshotTotals = CartTotals & {
+  subtotalCents: number | null;
+  currency: string;
+};
+
 export type Cart = {
   id: string;
   userId?: string | null;
@@ -27,6 +38,19 @@ export type Cart = {
   version: number;
   createdAt: string;
   updatedAt: string;
+};
+
+export type CartSnapshot = {
+  snapshotId: string;
+  cartId: string;
+  cartVersion: number;
+  currency: string;
+  items: CartSnapshotItem[];
+  totals: CartSnapshotTotals;
+  createdAt: string;
+  userId?: string | null;
+  signature: string;
+  pricingSnapshot?: CartPricingSnapshot | null;
 };
 
 export type CartTotals = {
