@@ -4,13 +4,17 @@ import {
   integer,
   jsonb,
   numeric,
+  pgSchema,
   pgTable,
   text,
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core"
 
-export const productTable = pgTable("products", {
+const frontend = pgSchema('frontend')
+
+
+export const productTable = frontend.table("products", {
   id: uuid("id").primaryKey().defaultRandom(),
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
@@ -31,7 +35,7 @@ export const productTable = pgTable("products", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 })
 
-export const collectionTable = pgTable("collections", {
+export const collectionTable = frontend.table("collections", {
   id: uuid("id").primaryKey().defaultRandom(),
   title: text("title").notNull(),
   description: text("description").notNull(),
@@ -43,7 +47,7 @@ export const collectionTable = pgTable("collections", {
   metricValue: text("metric_value").default("+120% YoY"),
 })
 
-export const editorialTable = pgTable("editorials", {
+export const editorialTable = frontend.table("editorials", {
   id: uuid("id").primaryKey().defaultRandom(),
   eyebrow: text("eyebrow").notNull(),
   title: text("title").notNull(),

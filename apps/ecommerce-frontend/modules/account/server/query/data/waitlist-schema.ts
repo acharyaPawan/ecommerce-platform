@@ -1,6 +1,8 @@
-import { pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core"
+import { pgSchema, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core"
 
-export const waitlistSignupTable = pgTable("waitlist_signups", {
+const frontend = pgSchema('frontend')
+
+export const waitlistSignupTable = frontend.table("waitlist_signups", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: text("email").notNull(),
   company: text("company").notNull(),

@@ -5,7 +5,9 @@
   "packageManager": "pnpm@10.18.3",
   "scripts": {
     "dev": "turbo run dev --parallel",
+    "dev:services": "turbo run dev:services --parallel",
     "build": "turbo run build",
+    "build:services": "turbo run build:services",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "clean": "turbo run clean"
