@@ -22,6 +22,7 @@ import {
 } from "../cart/errors.js";
 import type { IdempotencyStore, StoredIdempotentResponse } from "../infra/idempotency-store.js";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { createUserResolver, type UserResolver } from "../auth/user-context.js";
 
 type CartRouterDeps = {
   cartService: CartService;
@@ -33,9 +34,10 @@ export function createCartRouter({ cartService, idempotencyStore, config }: Cart
   const router = new Hono();
   const addItemSchema = createAddItemSchema(config.maxQtyPerItem);
   const updateItemSchema = createUpdateItemSchema(config.maxQtyPerItem);
+  const resolveUser = createUserResolver(config);
 
   router.get("/", async (c) => {
-    const context = parseCartContext(c);
+    const context = await parseCartContext(c, resolveUser);
     if (!context.cartId && !context.userId) {
       return c.json({ error: "Provide X-Cart-Id or Authorization" }, 400);
     }
@@ -60,7 +62,7 @@ export function createCartRouter({ cartService, idempotencyStore, config }: Cart
       return c.json({ error: "Validation failed", details: parsed.error.flatten() }, 422);
     }
 
-    const context = parseCartContext(c);
+    const context = await parseCartContext(c, resolveUser);
     const idempotencyKey = readIdempotencyKey(c);
     if (!idempotencyKey) {
       return c.json({ error: "Idempotency-Key header is required" }, 400);
@@ -91,7 +93,7 @@ export function createCartRouter({ cartService, idempotencyStore, config }: Cart
       return c.json({ error: "Validation failed", details: parsed.error.flatten() }, 422);
     }
 
-    const context = parseCartContext(c);
+    const context = await parseCartContext(c, resolveUser);
     const idempotencyKey = readIdempotencyKey(c);
     if (!idempotencyKey) {
       return c.json({ error: "Idempotency-Key header is required" }, 400);
@@ -127,7 +129,7 @@ export function createCartRouter({ cartService, idempotencyStore, config }: Cart
       target = parsed.data;
     }
 
-    const context = parseCartContext(c);
+    const context = await parseCartContext(c, resolveUser);
     const idempotencyKey = readIdempotencyKey(c);
     if (!idempotencyKey) {
       return c.json({ error: "Idempotency-Key header is required" }, 400);
@@ -149,7 +151,7 @@ export function createCartRouter({ cartService, idempotencyStore, config }: Cart
   });
 
   router.post("/merge", async (c) => {
-    const context = parseCartContext(c);
+    const context = await parseCartContext(c, resolveUser);
     if (!context.userId) {
       return c.json({ error: "Authorization header is required for merge" }, 400);
     }
@@ -187,7 +189,7 @@ export function createCartRouter({ cartService, idempotencyStore, config }: Cart
       return c.json({ error: "Validation failed", details: parsed.error.flatten() }, 422);
     }
 
-    const context = parseCartContext(c);
+    const context = await parseCartContext(c, resolveUser);
     if (!context.cartId && !context.userId) {
       return c.json({ error: "Provide X-Cart-Id or Authorization" }, 400);
     }
@@ -230,10 +232,11 @@ export function createCartRouter({ cartService, idempotencyStore, config }: Cart
   return router;
 }
 
-function parseCartContext(c: Context): CartContext {
+async function parseCartContext(c: Context, resolveUser: UserResolver): Promise<CartContext> {
+  const user = await resolveUser(c.req.raw);
   const headers = cartContextSchema.safeParse({
     cartId: c.req.header("x-cart-id")?.trim(),
-    userId: extractUserId(c),
+    userId: user?.userId,
     currency: c.req.header("x-cart-currency")?.trim(),
   });
 
@@ -242,19 +245,6 @@ function parseCartContext(c: Context): CartContext {
   }
 
   return headers.data;
-}
-
-function extractUserId(c: Context): string | undefined {
-  const header = c.req.header("authorization") ?? c.req.header("x-user-id");
-  if (!header) {
-    return undefined;
-  }
-
-  if (header.toLowerCase().startsWith("bearer ")) {
-    return header.slice(7).trim() || undefined;
-  }
-
-  return header.trim() || undefined;
 }
 
 function readIdempotencyKey(c: Context): string | undefined {
