@@ -9,7 +9,7 @@ import {
   IamEventType,
   makeIamEnvelope,
 } from "./contracts/iam-events.js";
-import { jwt, openAPI } from "better-auth/plugins";
+import { customSession, jwt, openAPI } from "better-auth/plugins";
 import { applyAccessToSession, loadUserAccess, synchronizeUserAccess } from "./access/control.js";
 
 const SIGN_UP_EMAIL_PATH = "/sign-up/email";
@@ -78,6 +78,40 @@ export const auth = betterAuth({
           };
         },
       },
+    }),
+    customSession(async ({ user: sessionUser, session }) => {
+      const enrichedUser = sessionUser as typeof sessionUser & {
+        roles?: string[];
+        scopes?: string[];
+      };
+      const userAccess =
+        Array.isArray(enrichedUser.roles) && Array.isArray(enrichedUser.scopes)
+          ? {
+              roles: enrichedUser.roles,
+              scopes: enrichedUser.scopes,
+            }
+          : await loadUserAccess(sessionUser.id);
+
+      return {
+        session: {
+          id: session.id,
+          expiresAt: session.expiresAt,
+          createdAt: session.createdAt,
+          updatedAt: session.updatedAt,
+          userId: session.userId,
+        },
+        user: {
+          id: sessionUser.id,
+          email: sessionUser.email,
+          name: sessionUser.name,
+          image: sessionUser.image,
+          emailVerified: sessionUser.emailVerified,
+          createdAt: sessionUser.createdAt,
+          updatedAt: sessionUser.updatedAt,
+          roles: userAccess.roles,
+          scopes: userAccess.scopes,
+        },
+      };
     }),
   ],
   emailAndPassword: {
