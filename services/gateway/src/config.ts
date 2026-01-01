@@ -36,6 +36,8 @@ const envSchema = z.object({
 
 type EnvShape = z.infer<typeof envSchema>;
 
+const stripTrailingSlash = (value: string) => value.replace(/\/+$/, '');
+
 export const loadConfig = (env: NodeJS.ProcessEnv = process.env): GatewayConfig => {
   const parsed = envSchema.parse(env);
   const services = Object.keys(serviceDefaults).reduce<Record<ServiceTarget, ServiceConfig>>(
@@ -50,6 +52,8 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): GatewayConfig 
     {} as Record<ServiceTarget, ServiceConfig>,
   );
 
+  const jwksUrl = parsed.IAM_JWKS_URL ?? `${stripTrailingSlash(services.iam.baseUrl)}/api/auth/jwks`;
+
   return {
     port: parsed.PORT,
     env: parsed.NODE_ENV as RuntimeEnv,
@@ -57,7 +61,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): GatewayConfig 
     idempotencyHeader: parsed.IDEMPOTENCY_HEADER.toLowerCase(),
     defaultCurrency: parsed.DEFAULT_CURRENCY,
     auth: {
-      jwksUrl: parsed.IAM_JWKS_URL,
+      jwksUrl,
       audience: parsed.IAM_JWT_AUDIENCE,
       issuer: parsed.IAM_JWT_ISSUER,
       devUserHeader: parsed.DEV_USER_HEADER.toLowerCase(),

@@ -9,7 +9,7 @@ import {
   IamEventType,
   makeIamEnvelope,
 } from "./contracts/iam-events.js";
-import { openAPI } from "better-auth/plugins";
+import { jwt, openAPI } from "better-auth/plugins";
 
 const SIGN_UP_EMAIL_PATH = "/sign-up/email";
 const SIGN_IN_EMAIL_PATH = "/sign-in/email";
@@ -22,6 +22,10 @@ type SignOutState = {
   token: string;
   userId: string;
 };
+
+const JWT_ISSUER = process.env.AUTH_JWT_ISSUER ?? "iam-svc";
+const JWT_AUDIENCE = process.env.AUTH_JWT_AUDIENCE ?? "ecommerce-clients";
+const JWT_EXPIRATION = process.env.AUTH_JWT_EXPIRATION ?? "15m";
 
 const persistOutboxEvent = async (event: AnyIamEvent) => {
   await db.insert(iamOutboxEvents).values(mapToOutboxEvent(event));
@@ -49,6 +53,32 @@ export const auth = betterAuth({
   }),
   plugins: [
     openAPI(),
+    jwt({
+      jwks: {
+        keyPairConfig: {
+          alg: "EdDSA",
+          crv: "Ed25519",
+        },
+      },
+      jwt: {
+        issuer: JWT_ISSUER,
+        audience: JWT_AUDIENCE,
+        expirationTime: JWT_EXPIRATION,
+        definePayload: ({ user, session }) => ({
+          userId: user.id,
+          email: user.email,
+          name: user.name,
+          emailVerified: user.emailVerified,
+          sessionId: session.id,
+          scopes: Array.isArray((user as Record<string, unknown>).scopes)
+            ? ((user as Record<string, unknown>).scopes as string[])
+            : [],
+          roles: Array.isArray((user as Record<string, unknown>).roles)
+            ? ((user as Record<string, unknown>).roles as string[])
+            : [],
+        }),
+      },
+    }),
   ],
   emailAndPassword: {
     enabled: true,
