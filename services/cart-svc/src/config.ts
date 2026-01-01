@@ -43,7 +43,7 @@ export function loadConfig(): ServiceConfig {
     maxQtyPerItem: parseNumber(process.env.CART_MAX_QTY_PER_ITEM, 25),
     snapshotSecret: process.env.CART_SNAPSHOT_SECRET ?? "cart-snapshot-secret",
     catalogServiceUrl: process.env.CATALOG_SERVICE_URL,
-    ordersServiceUrl: process.env.ORDERS_SERVICE_URL,
+    ordersServiceUrl: process.env.ORDERS_SERVICE_URL ?? "http://localhost:3005",
     auth: loadAuthConfig({
       deriveJwksFromIam: {
         iamUrl: process.env.IAM_SERVICE_URL,

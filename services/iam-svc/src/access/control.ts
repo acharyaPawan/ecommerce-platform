@@ -5,8 +5,8 @@ import { user } from "../db/schema.js";
 
 const ROLE_SCOPES = {
   customer: [] as string[],
-  operator: ["orders:write", "payments:write"],
-  admin: ["catalog:write", "orders:write", "payments:write"],
+  operator: ["orders:write", "payments:write", "inventory:write"],
+  admin: ["catalog:write", "orders:write", "payments:write", "inventory:write"],
 } as const;
 
 export type GlobalRole = keyof typeof ROLE_SCOPES;

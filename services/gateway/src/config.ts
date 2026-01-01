@@ -10,7 +10,7 @@ const serviceDefaults: Record<ServiceTarget, { url: string; timeoutMs: number }>
   inventory: { url: 'http://localhost:3003', timeoutMs: 500 },
   cart: { url: 'http://localhost:3004', timeoutMs: 400 },
   orders: { url: 'http://localhost:3005', timeoutMs: 800 },
-  ordersRead: { url: 'http://localhost:3006', timeoutMs: 600 },
+  ordersRead: { url: 'http://localhost:3005', timeoutMs: 600 },
   payments: { url: 'http://localhost:3007', timeoutMs: 800 },
   paymentsRead: { url: 'http://localhost:3008', timeoutMs: 600 },
   fulfillment: { url: 'http://localhost:3009', timeoutMs: 600 },
