@@ -73,7 +73,7 @@ Thumbs.db
 
 
 ai-guide/
-docs/
+# docs/
 infra/
 
 packages/drizzle

@@ -1,0 +1,132 @@
+asyncapi: "3.0.0"
+info:
+  title: IAM Events API
+  version: "1.0.0"
+  description: |
+    IAM domain events emitted by the IAM service (Better Auth + Outbox).
+    These events are consumed by Notifications, Customer Profile, Orders (policy), etc.
+
+servers:
+  devKafka:
+    host: localhost:9092
+    protocol: kafka
+
+channels:
+  iam.events:
+    address: iam.events
+    messages:
+      IamUserRegisteredV1:
+        $ref: "#/components/messages/IamUserRegisteredV1"
+      IamUserEmailVerifiedV1:
+        $ref: "#/components/messages/IamUserEmailVerifiedV1"
+      IamUserProfileUpdatedV1:
+        $ref: "#/components/messages/IamUserProfileUpdatedV1"
+
+  iam.security-events:
+    address: iam.security-events
+    messages:
+      IamUserSignedInV1:
+        $ref: "#/components/messages/IamUserSignedInV1"
+
+operations:
+  publishIamEvents:
+    action: send
+    channel:
+      $ref: "#/channels/iam.events"
+  publishIamSecurityEvents:
+    action: send
+    channel:
+      $ref: "#/channels/iam.security-events"
+
+components:
+  schemas:
+    IamEnvelopeBase:
+      type: object
+      required: [id, type, aggregateType, aggregateId, occurredAt, version, payload]
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string }
+        aggregateType: { type: string, enum: ["user"] }
+        aggregateId: { type: string }
+        occurredAt: { type: string, format: date-time }
+        version: { type: integer, enum: [1] }
+        correlationId: { type: string }
+        causationId: { type: string }
+        payload: { type: object }
+
+    UserRegisteredPayloadV1:
+      type: object
+      required: [userId, email, name, emailVerified]
+      properties:
+        userId: { type: string }
+        email: { type: string, format: email }
+        name: { type: ["string", "null"] }
+        emailVerified: { type: boolean }
+
+    UserEmailVerifiedPayloadV1:
+      type: object
+      required: [userId, verifiedAt]
+      properties:
+        userId: { type: string }
+        verifiedAt: { type: string, format: date-time }
+
+    UserProfileUpdatedPayloadV1:
+      type: object
+      required: [userId, updatedAt]
+      properties:
+        userId: { type: string }
+        name: { type: ["string", "null"] }
+        avatarUrl: { type: ["string", "null"] }
+        updatedAt: { type: string, format: date-time }
+
+    UserSignedInPayloadV1:
+      type: object
+      required: [userId, occurredAt]
+      properties:
+        userId: { type: string }
+        occurredAt: { type: string, format: date-time }
+
+  messages:
+    IamUserRegisteredV1:
+      name: iam.user.registered.v1
+      title: User Registered
+      payload:
+        allOf:
+          - $ref: "#/components/schemas/IamEnvelopeBase"
+          - type: object
+            properties:
+              type: { const: "iam.user.registered.v1" }
+              payload: { $ref: "#/components/schemas/UserRegisteredPayloadV1" }
+
+    IamUserEmailVerifiedV1:
+      name: iam.user.email_verified.v1
+      title: User Email Verified
+      payload:
+        allOf:
+          - $ref: "#/components/schemas/IamEnvelopeBase"
+          - type: object
+            properties:
+              type: { const: "iam.user.email_verified.v1" }
+              payload: { $ref: "#/components/schemas/UserEmailVerifiedPayloadV1" }
+
+    IamUserProfileUpdatedV1:
+      name: iam.user.profile_updated.v1
+      title: User Profile Updated
+      payload:
+        allOf:
+          - $ref: "#/components/schemas/IamEnvelopeBase"
+          - type: object
+            properties:
+              type: { const: "iam.user.profile_updated.v1" }
+              payload: { $ref: "#/components/schemas/UserProfileUpdatedPayloadV1" }
+
+    IamUserSignedInV1:
+      name: iam.user.signed_in.v1
+      title: User Signed In (Telemetry)
+      payload:
+        allOf:
+          - $ref: "#/components/schemas/IamEnvelopeBase"
+          - type: object
+            properties:
+              type: { const: "iam.user.signed_in.v1" }
+              payload: { $ref: "#/components/schemas/UserSignedInPayloadV1" }
