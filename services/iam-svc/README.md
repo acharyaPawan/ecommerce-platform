@@ -26,3 +26,7 @@ pnpm --filter @ecommerce/iam-svc worker:outbox
 - `pnpm build` – type-check and emit JavaScript.
 - `pnpm db:push` – apply the current Drizzle schema to the database.
 - `pnpm worker:outbox` – run the IAM outbox publisher worker.
+
+## Global roles and scopes
+
+IAM issues JWTs that contain globally recognized roles/scopes so other services can make coarse authorization decisions without calling back to IAM. Configure initial admin principals via the `IAM_ADMIN_EMAILS` environment variable (comma-separated list). Admins automatically receive the `admin` role, which currently maps to the `catalog:write`, `orders:write`, and `payments:write` scopes. All other users default to the `customer` role with no privileged scopes. Downstream services remain responsible for finer-grained policies and may still maintain their own ACL tables when necessary.

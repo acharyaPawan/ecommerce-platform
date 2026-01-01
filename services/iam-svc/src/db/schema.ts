@@ -6,6 +6,7 @@ import {
   pgSchema,
   jsonb,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 export const auth = pgSchema("auth");
 
@@ -16,6 +17,8 @@ export const user = auth.table("user", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").default(false).notNull(),
   image: text("image"),
+  roles: jsonb("roles").$type<string[]>().default(sql`'["customer"]'::jsonb`).notNull(),
+  scopes: jsonb("scopes").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()

@@ -10,6 +10,7 @@ import {
   makeIamEnvelope,
 } from "./contracts/iam-events.js";
 import { jwt, openAPI } from "better-auth/plugins";
+import { applyAccessToSession, loadUserAccess, synchronizeUserAccess } from "./access/control.js";
 
 const SIGN_UP_EMAIL_PATH = "/sign-up/email";
 const SIGN_IN_EMAIL_PATH = "/sign-in/email";
@@ -64,19 +65,18 @@ export const auth = betterAuth({
         issuer: JWT_ISSUER,
         audience: JWT_AUDIENCE,
         expirationTime: JWT_EXPIRATION,
-        definePayload: ({ user, session }) => ({
-          userId: user.id,
-          email: user.email,
-          name: user.name,
-          emailVerified: user.emailVerified,
-          sessionId: session.id,
-          scopes: Array.isArray((user as Record<string, unknown>).scopes)
-            ? ((user as Record<string, unknown>).scopes as string[])
-            : [],
-          roles: Array.isArray((user as Record<string, unknown>).roles)
-            ? ((user as Record<string, unknown>).roles as string[])
-            : [],
-        }),
+        definePayload: async ({ user, session }) => {
+          const access = await loadUserAccess(user.id);
+          return {
+            userId: user.id,
+            email: user.email,
+            name: user.name,
+            emailVerified: user.emailVerified,
+            sessionId: session.id,
+            scopes: access.scopes,
+            roles: access.roles,
+          };
+        },
       },
     }),
   ],
@@ -112,6 +112,7 @@ export const auth = betterAuth({
       };
     }),
     after: createAuthMiddleware(async (ctx) => {
+      await syncSessionAccess(ctx);
       const correlationId = getHeaderValue(ctx.headers, "x-request-id");
       const requestPath = ctx.path;
 
@@ -189,6 +190,15 @@ export const auth = betterAuth({
     }),
   },
 });
+
+async function syncSessionAccess(ctx: HookEndpointContext): Promise<void> {
+  const sessionUser = ctx.context.session?.user ?? ctx.context.newSession?.user;
+  if (!sessionUser?.id) {
+    return;
+  }
+  const access = await synchronizeUserAccess(sessionUser.id, sessionUser.email);
+  applyAccessToSession(ctx, access);
+}
 
 async function handleProfileUpdatedEvent(
   ctx: HookEndpointContext,
