@@ -28,7 +28,7 @@ export const createApp = async () => {
 
   registerStatusRoutes(app);
   registerCatalogRoutes(app);
-  registerCartRoutes(app);
+  registerCartRoutes(app, logger);
   registerCustomerRoutes(app);
   registerCheckoutRoutes(app);
   registerOrderRoutes(app);

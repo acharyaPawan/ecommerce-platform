@@ -62,6 +62,7 @@ export class HttpServiceClient implements ServiceClient {
     const signal = AbortSignal.timeout(timeout);
 
     try {
+      console.log(`fetch url is: ${url}`)
       const response = await fetch(url, {
         method: options.method,
         headers,
