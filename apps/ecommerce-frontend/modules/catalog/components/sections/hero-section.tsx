@@ -2,7 +2,7 @@ import Image from "next/image"
 import Link from "next/link"
 
 import { Badge } from "@/components/ui/badge"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 import { type ProductDTO } from "@/modules/catalog/server/query/dto/product-dto"

@@ -18,7 +18,7 @@ const serviceDefaults: Record<ServiceTarget, { url: string; timeoutMs: number }>
 
 const envSchema = z.object({
   NODE_ENV: runtimeEnvSchema.default('development'),
-  PORT: z.coerce.number().int().positive().default(30006),
+  PORT: z.coerce.number().int().positive().default(3006),
   LOG_LEVEL: logLevelSchema.default('info'),
   IDEMPOTENCY_HEADER: z.string().min(1).default('idempotency-key'),
   DEFAULT_CURRENCY: z.string().min(3).default('USD'),

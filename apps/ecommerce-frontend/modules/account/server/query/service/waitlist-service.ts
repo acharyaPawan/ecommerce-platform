@@ -1,6 +1,6 @@
 import { cache } from "react"
 
-import { count, desc, sql } from "drizzle-orm"
+import { count, desc } from "drizzle-orm"
 
 import { waitlistSignupTable } from "@/db/schemas/account"
 import { db } from "@/lib/drizzle/client"

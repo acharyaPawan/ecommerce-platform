@@ -43,9 +43,12 @@ class JwtAuthProvider implements AuthProvider {
 
       return this.toPrincipal(token, verified.payload);
     } catch (error) {
-      this.options.logger.warn('auth.jwt.invalid', {
-        message: (error as Error).message,
-      });
+      this.options.logger.warn(
+        {
+          err: error as Error,
+        },
+        'auth.jwt.invalid',
+      );
       throw new AuthError('Invalid authentication token', 401);
     }
   }
@@ -94,9 +97,12 @@ export const createAuthProvider = (config: GatewayConfig, logger: Logger): AuthP
     });
   }
 
-  logger.warn('auth.dev-mode.enabled', {
-    header: config.auth.devUserHeader,
-  });
+  logger.warn(
+    {
+      header: config.auth.devUserHeader,
+    },
+    'auth.dev-mode.enabled',
+  );
   return new HeaderPassthroughAuthProvider(config.auth.devUserHeader);
 };
 

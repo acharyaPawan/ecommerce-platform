@@ -88,12 +88,15 @@ export class HttpServiceClient implements ServiceClient {
         data = (await response.text()) as unknown;
       }
 
-      this.options.logger.debug('downstream.request', {
-        service: this.name,
-        method: options.method,
-        path: options.path,
-        status: response.status,
-      });
+      this.options.logger.debug(
+        {
+          service: this.name,
+          method: options.method,
+          path: options.path,
+          status: response.status,
+        },
+        'downstream.request',
+      );
 
       return {
         status: response.status,
@@ -102,17 +105,23 @@ export class HttpServiceClient implements ServiceClient {
       };
     } catch (error) {
       if (error instanceof DownstreamError) {
-        this.options.logger.warn('downstream.error', {
-          service: error.details.service,
-          status: error.details.status,
-        });
+        this.options.logger.warn(
+          {
+            service: error.details.service,
+            status: error.details.status,
+          },
+          'downstream.error',
+        );
         throw error;
       }
 
-      this.options.logger.error('downstream.error', {
-        service: this.name,
-        message: (error as Error)?.message,
-      });
+      this.options.logger.error(
+        {
+          service: this.name,
+          err: error as Error,
+        },
+        'downstream.error',
+      );
       throw new DownstreamError({
         service: this.name,
         cause: error,

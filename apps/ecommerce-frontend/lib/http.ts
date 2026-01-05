@@ -16,6 +16,8 @@ export async function httpFetch<TOutput = unknown>(
     ...init,
   })
 
+  console.debug(response);
+
   if (!response.ok) {
     const message = await safeReadText(response)
     throw new Error(message || `Request failed with status ${response.status}`)

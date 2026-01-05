@@ -49,9 +49,12 @@ export const createRequestContext = ({ config, clients, logger }: RequestContext
     try {
       await next();
     } finally {
-      requestLogger.info('request.completed', {
-        status: c.res.status,
-        durationMs: Date.now() - start,
-      });
+      requestLogger.info(
+        {
+          status: c.res.status,
+          durationMs: Date.now() - start,
+        },
+        'request.completed',
+      );
     }
   });

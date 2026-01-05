@@ -9,10 +9,10 @@ import {
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core"
+import { frontendSchema } from "./my-schema"
 
-const frontend = pgSchema("frontend")
 
-export const productTable = frontend.table("products", {
+export const productTable = frontendSchema.table("products", {
   id: uuid("id").primaryKey().defaultRandom(),
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
@@ -33,7 +33,7 @@ export const productTable = frontend.table("products", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 })
 
-export const collectionTable = frontend.table("collections", {
+export const collectionTable = frontendSchema.table("collections", {
   id: uuid("id").primaryKey().defaultRandom(),
   title: text("title").notNull(),
   description: text("description").notNull(),
@@ -45,7 +45,7 @@ export const collectionTable = frontend.table("collections", {
   metricValue: text("metric_value").default("+120% YoY"),
 })
 
-export const editorialTable = frontend.table("editorials", {
+export const editorialTable = frontendSchema.table("editorials", {
   id: uuid("id").primaryKey().defaultRandom(),
   eyebrow: text("eyebrow").notNull(),
   title: text("title").notNull(),

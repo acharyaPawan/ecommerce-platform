@@ -25,7 +25,7 @@ export async function addToCartAction(input: AddToCartInput) {
     } as const
   }
 
-  await httpFetch(`${gatewayUrl.replace(/\/$/, "")}/cart`, {
+  await httpFetch(`${gatewayUrl.replace(/\/$/, "")}/api/cart`, {
     method: "POST",
     body: JSON.stringify(payload),
   })
