@@ -1,6 +1,10 @@
 # Gateway (BFF) API
 
 ## Overview
+The thing is endpoints are as:/cart, /products like so.Refer to gateway/src/app.ts
+The docs is overally right.But, there is no prefix at gateway level such as '/api'.However, the 'api' prefix is followed at other services.
+TODO-fix-later
+
 The gateway is the only externally exposed service. It terminates client requests behind the ingress, enforces coarse authentication/authorization, orchestrates downstream services, and normalizes errors. All routes share the `/api` prefix when published through the ingress (`https://{host}/api/...`).
 
 ## Base URL & Health
