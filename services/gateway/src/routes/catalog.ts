@@ -6,7 +6,7 @@ export const registerCatalogRoutes = (app: Hono<GatewayBindings>) => {
   app.get('/products', async (c) => {
     const { data } = await callService<unknown>(c, 'catalog', {
       method: 'GET',
-      path: '/products',
+      path: 'api/catalog/products',
       searchParams: requestQueries(c),
       forwardAuth: false,
     });
@@ -17,7 +17,7 @@ export const registerCatalogRoutes = (app: Hono<GatewayBindings>) => {
   app.get('/products/:id', async (c) => {
     const { data } = await callService<unknown>(c, 'catalog', {
       method: 'GET',
-      path: `/products/${c.req.param('id')}`,
+      path: `api/catalog/products/${c.req.param('id')}`,
     });
 
     return c.json(data);

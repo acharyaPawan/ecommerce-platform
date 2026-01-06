@@ -6,7 +6,7 @@ const logLevelSchema = z.enum(['fatal', 'error', 'warn', 'info', 'debug']);
 
 const serviceDefaults: Record<ServiceTarget, { url: string; timeoutMs: number }> = {
   iam: { url: 'http://localhost:3001', timeoutMs: 400 },
-  catalog: { url: 'http://localhost:3002', timeoutMs: 600 },
+  catalog: { url: 'http://localhost:3002', timeoutMs: 10000 },
   inventory: { url: 'http://localhost:3003', timeoutMs: 500 },
   cart: { url: 'http://localhost:3004', timeoutMs: 400 },
   orders: { url: 'http://localhost:3005', timeoutMs: 800 },
