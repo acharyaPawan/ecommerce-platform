@@ -10,6 +10,7 @@ import {
   makeIamEnvelope,
 } from "./contracts/iam-events.js";
 import { customSession, jwt, openAPI } from "better-auth/plugins";
+export type UserRole = "customer" | "admin";
 
 const SIGN_UP_EMAIL_PATH = "/sign-up/email";
 const SIGN_IN_EMAIL_PATH = "/sign-in/email";
@@ -17,6 +18,8 @@ const EMAIL_VERIFICATION_PATH = "/verify-email"; //To check with better
 const UPDATE_USER_PATH = "/update-user";
 const SIGN_OUT_PATH = "/sign-out";
 const SIGN_OUT_STATE_KEY = "__iamSignOutState";
+const DEFAULT_ROLE: UserRole = "customer";
+const ROLE_ORDER: readonly UserRole[] = ["admin", "customer"];
 
 type SignOutState = {
   token: string;
@@ -60,18 +63,22 @@ export const auth = betterAuth({
           crv: "Ed25519",
         },
       },
+    //   Keeping roles as an array gives us flexibility if we ever expand beyond two roles again, while the new role field exposes the highest‑priority role (admin
+    // before customer) for the “simple auth” frontends you mentioned.
       jwt: {
         issuer: JWT_ISSUER,
         audience: JWT_AUDIENCE,
         expirationTime: JWT_EXPIRATION,
         definePayload: async ({ user, session }) => {
           const roles = extractUserRoles(user);
+          const role = roles[0] ?? DEFAULT_ROLE;
           return {
             userId: user.id,
             email: user.email,
             name: user.name,
             emailVerified: user.emailVerified,
             sessionId: session.id,
+            role,
             roles,
           };
         },
@@ -79,6 +86,7 @@ export const auth = betterAuth({
     }),
     customSession(async ({ user: sessionUser, session }) => {
       const roles = extractUserRoles(sessionUser);
+      const role = roles[0] ?? DEFAULT_ROLE;
 
       return {
         session: {
@@ -96,6 +104,7 @@ export const auth = betterAuth({
           emailVerified: sessionUser.emailVerified,
           createdAt: sessionUser.createdAt,
           updatedAt: sessionUser.updatedAt,
+          role,
           roles,
         },
       };
@@ -287,27 +296,47 @@ async function handleSignedOutEvent(
   await persistOutboxEvent(envelope);
 }
 
-function extractUserRoles(user: unknown): string[] {
+function extractUserRoles(user: unknown): UserRole[] {
   if (!user || typeof user !== "object") {
-    return [];
+    return [DEFAULT_ROLE];
   }
-  return normalizeRoles((user as { roles?: unknown }).roles);
+  const normalized = normalizeRoles((user as { roles?: unknown }).roles);
+  if (normalized.length === 0) {
+    return [DEFAULT_ROLE];
+  }
+  return normalized;
 }
 
-function normalizeRoles(value: unknown): string[] {
-  if (!value) {
-    return [];
-  }
-  if (Array.isArray(value)) {
-    return value.filter((role): role is string => typeof role === "string");
-  }
-  if (typeof value === "string") {
-    return value
-      .split(",")
-      .map((role) => role.trim())
-      .filter(Boolean);
+function normalizeRoles(value: unknown): UserRole[] {
+  const values: string[] = Array.isArray(value)
+    ? value.filter((role): role is string => typeof role === "string")
+    : typeof value === "string"
+      ? value
+          .split(",")
+          .map((role) => role.trim())
+          .filter(Boolean)
+      : [];
+
+  const allowed = values.filter(isUserRole);
+  if (allowed.length > 0) {
+    const seen = new Set<UserRole>();
+    for (const role of ROLE_ORDER) {
+      if (allowed.includes(role) && !seen.has(role)) {
+        seen.add(role);
+      }
+    }
+    for (const role of allowed) {
+      if (!seen.has(role)) {
+        seen.add(role);
+      }
+    }
+    return Array.from(seen);
   }
   return [];
+}
+
+function isUserRole(value: string): value is UserRole {
+  return value === "admin" || value === "customer";
 }
 
 function getHeaderValue(headers: Headers | HeadersInit | undefined, name: string): string | undefined {
