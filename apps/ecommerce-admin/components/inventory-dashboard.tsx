@@ -573,7 +573,7 @@ function LowStockWatchlist({
 
 function AdjustmentForm({ selectedSku }: { selectedSku?: string }) {
   const [sku, setSku] = React.useState(selectedSku ?? "")
-  const [state, formAction] = useFormState(
+  const [state, formAction] = React.useActionState(
     adjustInventoryAction,
     adjustmentInitialState
   )
@@ -654,15 +654,15 @@ function AdjustmentForm({ selectedSku }: { selectedSku?: string }) {
 
 function ReservationForms({ selectedSku }: { selectedSku?: string }) {
   const [sku, setSku] = React.useState(selectedSku ?? "")
-  const [reserveState, reserveAction] = useFormState(
+  const [reserveState, reserveAction] = React.useActionState(
     createReservationAction,
     reservationInitialState
   )
-  const [commitState, commitAction] = useFormState(
+  const [commitState, commitAction] = React.useActionState(
     commitReservationAction,
     reservationInitialState
   )
-  const [releaseState, releaseAction] = useFormState(
+  const [releaseState, releaseAction] = React.useActionState(
     releaseReservationAction,
     reservationInitialState
   )
@@ -777,7 +777,7 @@ function ReservationForms({ selectedSku }: { selectedSku?: string }) {
 }
 
 function CatalogSeederCard() {
-  const [state, formAction] = useFormState(
+  const [state, formAction] = React.useActionState(
     seedRandomProductsAction,
     seedInitialState
   )
@@ -857,7 +857,7 @@ function CatalogSeederCard() {
 }
 
 function CatalogProductCreator() {
-  const [state, formAction] = useFormState(
+  const [state, formAction] = React.useActionState(
     createCatalogProductAction,
     createProductInitialState
   )
