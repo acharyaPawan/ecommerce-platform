@@ -6,6 +6,7 @@ export enum IamEventType {
   UserProfileUpdatedV1 = "iam.user.profile_updated.v1",
   UserSignedInV1 = "iam.user.signed_in.v1",
   UserSignedOutV1 = "iam.user.signed_out.v1",
+  OrganizationInvitationCreatedV1 = "iam.organization.invitation_created.v1",
 }
 
 export type IamEnvelope<TType extends IamEventType, TPayload> = {
@@ -64,12 +65,34 @@ export type UserSignedOutV1 = IamEnvelope<
   }
 >;
 
+export type OrganizationInvitationCreatedV1 = IamEnvelope<
+  IamEventType.OrganizationInvitationCreatedV1,
+  {
+    invitationId: string;
+    email: string;
+    inviteLink: string;
+    organization: {
+      id: string;
+      name: string;
+      slug?: string | null;
+      logo?: string | null;
+    };
+    inviter: {
+      id: string;
+      email: string;
+      name?: string | null;
+    };
+    expiresAt?: string | null;
+  }
+>;
+
 export type AnyIamEvent =
   | UserRegisteredV1
   | UserEmailVerifiedV1
   | UserProfileUpdatedV1
   | UserSignedInV1
-  | UserSignedOutV1;
+  | UserSignedOutV1
+  | OrganizationInvitationCreatedV1;
 
 export function makeIamEnvelope<TType extends IamEventType, TPayload>(args: {
   type: TType;

@@ -21,6 +21,8 @@ channels:
         $ref: "#/components/messages/IamUserEmailVerifiedV1"
       IamUserProfileUpdatedV1:
         $ref: "#/components/messages/IamUserProfileUpdatedV1"
+      IamOrganizationInvitationCreatedV1:
+        $ref: "#/components/messages/IamOrganizationInvitationCreatedV1"
 
   iam.security-events:
     address: iam.security-events
@@ -85,6 +87,29 @@ components:
       properties:
         userId: { type: string }
         occurredAt: { type: string, format: date-time }
+    OrganizationInvitationPayloadV1:
+      type: object
+      required: [invitationId, email, inviteLink, organization, inviter]
+      properties:
+        invitationId: { type: string }
+        email: { type: string, format: email }
+        inviteLink: { type: string, format: uri }
+        organization:
+          type: object
+          required: [id, name]
+          properties:
+            id: { type: string }
+            name: { type: string }
+            slug: { type: ["string", "null"] }
+            logo: { type: ["string", "null"], format: uri }
+        inviter:
+          type: object
+          required: [id, email]
+          properties:
+            id: { type: string }
+            email: { type: string, format: email }
+            name: { type: ["string", "null"] }
+        expiresAt: { type: ["string", "null"], format: date-time }
 
   messages:
     IamUserRegisteredV1:
@@ -130,3 +155,13 @@ components:
             properties:
               type: { const: "iam.user.signed_in.v1" }
               payload: { $ref: "#/components/schemas/UserSignedInPayloadV1" }
+    IamOrganizationInvitationCreatedV1:
+      name: iam.organization.invitation_created.v1
+      title: Organization Invitation Created
+      payload:
+        allOf:
+          - $ref: "#/components/schemas/IamEnvelopeBase"
+          - type: object
+            properties:
+              type: { const: "iam.organization.invitation_created.v1" }
+              payload: { $ref: "#/components/schemas/OrganizationInvitationPayloadV1" }

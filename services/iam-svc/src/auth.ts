@@ -9,8 +9,14 @@ import {
   IamEventType,
   makeIamEnvelope,
 } from "./contracts/iam-events.js";
-import { customSession, jwt, openAPI } from "better-auth/plugins";
+import { customSession, jwt, openAPI, organization } from "better-auth/plugins";
 import { applyAccessToSession, loadUserAccess, synchronizeUserAccess } from "./access/control.js";
+import {
+  ecommerceOrgAccessControl,
+  hasPrivilegedAccountRole,
+  organizationRoles,
+  resolveDefaultOrganizationRole,
+} from "./auth/organization-config.js";
 
 const SIGN_UP_EMAIL_PATH = "/sign-up/email";
 const SIGN_IN_EMAIL_PATH = "/sign-in/email";
@@ -27,6 +33,10 @@ type SignOutState = {
 const JWT_ISSUER = process.env.AUTH_JWT_ISSUER ?? "iam-svc";
 const JWT_AUDIENCE = process.env.AUTH_JWT_AUDIENCE ?? "ecommerce-clients";
 const JWT_EXPIRATION = process.env.AUTH_JWT_EXPIRATION ?? "15m";
+const ORGANIZATION_INVITE_BASE_URL =
+  process.env.IAM_ORG_INVITE_BASE_URL ?? process.env.IAM_DASHBOARD_URL ?? "https://example.com";
+const ORGANIZATION_INVITE_PATH =
+  process.env.IAM_ORG_INVITE_PATH ?? "/accept-invitation";
 
 const persistOutboxEvent = async (event: AnyIamEvent) => {
   await db.insert(iamOutboxEvents).values(mapToOutboxEvent(event));
@@ -53,7 +63,7 @@ export const auth = betterAuth({
     provider: "pg",
   }),
   plugins: [
-    openAPI(),
+    openAPI(),  
     jwt({
       jwks: {
         keyPairConfig: {
@@ -112,6 +122,33 @@ export const auth = betterAuth({
           scopes: userAccess.scopes,
         },
       };
+    }),
+    organization({
+      ac: ecommerceOrgAccessControl,
+      roles: organizationRoles,
+      allowUserToCreateOrganization: async (user) =>
+        hasPrivilegedAccountRole(readUserRoles(user)),
+      creatorRole: "owner",
+      requireEmailVerificationOnInvitation: true,
+      teams: {
+        enabled: false,
+      },
+      organizationHooks: {
+        beforeAddMember: async ({ member, user }) => {
+          if (member.role) {
+            return;
+          }
+          return {
+            data: {
+              ...member,
+              role: resolveDefaultOrganizationRole(readUserRoles(user)),
+            },
+          };
+        },
+      },
+      async sendInvitationEmail(invitation) {
+        await enqueueOrganizationInvitation(invitation);
+      },
     }),
   ],
   emailAndPassword: {
@@ -320,4 +357,104 @@ function getHeaderValue(headers: Headers | HeadersInit | undefined, name: string
   }
 
   return new Headers(headers).get(name) ?? undefined;
+}
+
+const DEFAULT_INVITATION_BASE = "https://example.com";
+
+function ensureLeadingSlash(value: string): string {
+  return value.startsWith("/") ? value : `/${value}`;
+}
+
+function stripTrailingSlash(value: string): string {
+  return value.endsWith("/") && value !== "/" ? value.slice(0, -1) : value;
+}
+
+function readUserRoles(user: unknown): string[] {
+  if (!user || typeof user !== "object") {
+    return [];
+  }
+  const roles = (user as { roles?: unknown }).roles;
+  if (!roles) {
+    return [];
+  }
+  if (Array.isArray(roles)) {
+    return roles.filter((role): role is string => typeof role === "string");
+  }
+  if (typeof roles === "string") {
+    return roles
+      .split(",")
+      .map((role) => role.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+function toIsoString(value?: string | Date | null): string | null {
+  if (!value) {
+    return null;
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  return value.toISOString();
+}
+
+function buildOrganizationInvitationLink(invitationId: string): string {
+  const baseUrl = (ORGANIZATION_INVITE_BASE_URL ?? "").trim();
+  const route = ensureLeadingSlash(ORGANIZATION_INVITE_PATH);
+  const origin = baseUrl || DEFAULT_INVITATION_BASE;
+
+  try {
+    const url = new URL(origin);
+    const normalizedBasePath = stripTrailingSlash(url.pathname);
+    url.pathname = `${normalizedBasePath}${route}/${invitationId}`;
+    return url.toString();
+  } catch {
+    const sanitizedOrigin = origin.replace(/\/$/, "");
+    return `${sanitizedOrigin}${route}/${invitationId}`;
+  }
+}
+
+async function enqueueOrganizationInvitation(invitation: {
+  id: string;
+  email: string;
+  organization: {
+    id: string;
+    name: string;
+    slug?: string | null;
+    logo?: string | null;
+  };
+  inviter: {
+    user: {
+      id: string;
+      email: string;
+      name?: string | null;
+    };
+  };
+  expiresAt?: Date | string | null;
+}): Promise<void> {
+  const inviteLink = buildOrganizationInvitationLink(invitation.id);
+  await persistOutboxEvent(
+    makeIamEnvelope({
+      type: IamEventType.OrganizationInvitationCreatedV1,
+      aggregateId: invitation.inviter.user.id,
+      payload: {
+        invitationId: invitation.id,
+        email: invitation.email,
+        inviteLink,
+        organization: {
+          id: invitation.organization.id,
+          name: invitation.organization.name,
+          slug: invitation.organization.slug ?? null,
+          logo: invitation.organization.logo ?? null,
+        },
+        inviter: {
+          id: invitation.inviter.user.id,
+          email: invitation.inviter.user.email,
+          name: invitation.inviter.user.name ?? null,
+        },
+        expiresAt: toIsoString(invitation.expiresAt),
+      },
+    }),
+  );
 }
