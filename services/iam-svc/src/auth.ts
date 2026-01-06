@@ -63,22 +63,18 @@ export const auth = betterAuth({
           crv: "Ed25519",
         },
       },
-    //   Keeping roles as an array gives us flexibility if we ever expand beyond two roles again, while the new role field exposes the highest‑priority role (admin
-    // before customer) for the “simple auth” frontends you mentioned.
       jwt: {
         issuer: JWT_ISSUER,
         audience: JWT_AUDIENCE,
         expirationTime: JWT_EXPIRATION,
         definePayload: async ({ user, session }) => {
           const roles = extractUserRoles(user);
-          const role = roles[0] ?? DEFAULT_ROLE;
           return {
             userId: user.id,
             email: user.email,
             name: user.name,
             emailVerified: user.emailVerified,
             sessionId: session.id,
-            role,
             roles,
           };
         },
@@ -86,7 +82,6 @@ export const auth = betterAuth({
     }),
     customSession(async ({ user: sessionUser, session }) => {
       const roles = extractUserRoles(sessionUser);
-      const role = roles[0] ?? DEFAULT_ROLE;
 
       return {
         session: {
@@ -104,7 +99,6 @@ export const auth = betterAuth({
           emailVerified: sessionUser.emailVerified,
           createdAt: sessionUser.createdAt,
           updatedAt: sessionUser.updatedAt,
-          role,
           roles,
         },
       };
