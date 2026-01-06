@@ -11,27 +11,15 @@ import type {
   CatalogProductInput,
   CatalogProductStatus,
 } from "@/lib/types/catalog"
-
-type BaseActionState = {
-  status: "idle" | "success" | "error"
-  message?: string
-}
-
-export type SeedProductsActionState = BaseActionState & {
-  processed?: number
-}
-
-export type CreateProductActionState = BaseActionState & {
-  productId?: string
-}
-
-export type UpdateProductActionState = BaseActionState
-
-const defaultSeedState: SeedProductsActionState = { status: "idle" }
-const defaultCreateState: CreateProductActionState = { status: "idle" }
-const defaultUpdateState: UpdateProductActionState = { status: "idle" }
-
-export { defaultSeedState, defaultCreateState, defaultUpdateState }
+import {
+  type SeedProductsActionState,
+  type CreateProductActionState,
+  type UpdateProductActionState,
+  seedInitialState,
+  createProductInitialState,
+  updateProductInitialState,
+  type BaseActionState,
+} from "@/lib/actions/catalog-action-state"
 
 export async function seedRandomProductsAction(
   _prev: SeedProductsActionState,
@@ -44,7 +32,7 @@ export async function seedRandomProductsAction(
 
   const count = clamp(Number(countRaw), 1, 200)
   if (!Number.isFinite(count)) {
-    return errorState(defaultSeedState, "Invalid count value.")
+    return errorState(seedInitialState, "Invalid count value.")
   }
 
   const tasks = Array.from({ length: count }, (_, index) =>
@@ -93,11 +81,11 @@ export async function createCatalogProductAction(
   const priceRaw = formData.get("price")?.toString()
   const currency = formData.get("currency")?.toString().trim() || "USD"
 
-  if (!title) return errorState(defaultCreateState, "Title is required.")
-  if (!sku) return errorState(defaultCreateState, "SKU is required.")
+  if (!title) return errorState(createProductInitialState, "Title is required.")
+  if (!sku) return errorState(createProductInitialState, "SKU is required.")
   const price = Number(priceRaw)
   if (!Number.isFinite(price) || price <= 0) {
-    return errorState(defaultCreateState, "Price must be greater than zero.")
+    return errorState(createProductInitialState, "Price must be greater than zero.")
   }
 
   const payload = normalizeProductPayload({
@@ -122,7 +110,7 @@ export async function createCatalogProductAction(
     }
   } catch (error) {
     return errorState(
-      defaultCreateState,
+      createProductInitialState,
       error instanceof Error ? error.message : "Failed to create product."
     )
   }
@@ -136,9 +124,9 @@ export async function updateCatalogProductAction(
   const title = formData.get("title")?.toString().trim()
   const status = parseStatus(formData.get("status")?.toString())
 
-  if (!productId) return errorState(defaultUpdateState, "Product ID missing.")
-  if (!title) return errorState(defaultUpdateState, "Title is required.")
-  if (!status) return errorState(defaultUpdateState, "Status is required.")
+  if (!productId) return errorState(updateProductInitialState, "Product ID missing.")
+  if (!title) return errorState(updateProductInitialState, "Title is required.")
+  if (!status) return errorState(updateProductInitialState, "Status is required.")
 
   const payload: Partial<CatalogProductInput> = {
     title,
@@ -153,7 +141,7 @@ export async function updateCatalogProductAction(
     return { status: "success", message: "Product updated." }
   } catch (error) {
     return errorState(
-      defaultUpdateState,
+      updateProductInitialState,
       error instanceof Error ? error.message : "Failed to update product."
     )
   }

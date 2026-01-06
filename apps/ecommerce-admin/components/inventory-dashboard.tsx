@@ -6,15 +6,17 @@ import { useFormState } from "react-dom"
 
 import {
   createCatalogProductAction,
-  defaultCreateState,
-  defaultSeedState,
-  defaultUpdateState,
   seedRandomProductsAction,
   updateCatalogProductAction,
+} from "@/app/actions/catalog-actions"
+import {
   type CreateProductActionState,
   type SeedProductsActionState,
   type UpdateProductActionState,
-} from "@/app/actions/catalog-actions"
+  createProductInitialState,
+  seedInitialState,
+  updateProductInitialState,
+} from "@/lib/actions/catalog-action-state"
 import {
   adjustInventoryAction,
   commitReservationAction,
@@ -56,13 +58,6 @@ type InventoryDashboardProps = {
 
 const adjustmentInitialState: AdjustmentActionState = { status: "idle" }
 const reservationInitialState: ReservationActionState = { status: "idle" }
-const seedInitialState: SeedProductsActionState = { ...defaultSeedState }
-const createProductInitialState: CreateProductActionState = {
-  ...defaultCreateState,
-}
-const updateProductInitialState: UpdateProductActionState = {
-  ...defaultUpdateState,
-}
 
 export function InventoryDashboard({ data }: InventoryDashboardProps) {
   const [selectedSku, setSelectedSku] = React.useState(
