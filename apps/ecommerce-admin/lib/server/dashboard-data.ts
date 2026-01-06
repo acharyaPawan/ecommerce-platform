@@ -2,17 +2,18 @@
 
 import "server-only"
 
-import { getMockInventoryActivity, getMockInventoryMetadata, getInventorySummary } from "@/lib/server/inventory-client"
+import { getInventorySummary } from "@/lib/server/inventory-client"
 import { listCatalogProducts } from "@/lib/server/catalog-client"
 import type { CatalogProductStatus } from "@/lib/types/catalog"
 import type { InventorySummary } from "@/lib/types/inventory"
-import type { InventoryOperationalMetadata, InventoryActivity } from "@/lib/mock-data"
 
 export type InventoryListItem = {
   productId: string
   variantId: string
   sku: string
   productTitle: string
+  productDescription?: string | null
+  productStatus: CatalogProductStatus
   brand?: string | null
   status: "active" | "discontinued"
   attributes: Record<string, string>
@@ -23,7 +24,6 @@ export type InventoryListItem = {
   categories: string[]
   mediaUrl?: string
   summary: InventorySummary
-  metadata?: InventoryOperationalMetadata
   lowStock: boolean
 }
 
@@ -37,7 +37,6 @@ export interface InventoryDashboardData {
     lowStockSkus: number
     sellThroughRisk: number
   }
-  activities: InventoryActivity[]
   lastRefreshed: string
 }
 
@@ -80,15 +79,15 @@ export async function getInventoryDashboardData(
         updatedAt: new Date().toISOString(),
       } satisfies InventorySummary)
 
-    const metadata = getMockInventoryMetadata(variant.sku)
-    const reorderPoint = metadata?.reorderPoint ?? 0
-    const lowStock = reorderPoint > 0 ? summary.available <= reorderPoint : summary.available <= 25
+    const lowStock = summary.available <= Math.max(summary.onHand * 0.25, 25)
 
     return {
       productId: product.id,
       variantId: variant.id,
       sku: variant.sku,
       productTitle: product.title,
+      productDescription: product.description,
+      productStatus: product.status,
       brand: product.brand,
       status: variant.status,
       attributes: variant.attributes,
@@ -101,7 +100,6 @@ export async function getInventoryDashboardData(
       categories: product.categories.map((category) => category.name),
       mediaUrl: product.media[0]?.url,
       summary,
-      metadata,
       lowStock,
     }
   })
@@ -133,7 +131,6 @@ export async function getInventoryDashboardData(
         : 0,
   }
 
-  const activities = getMockInventoryActivity()
   const latestTimestamp = items
     .map((item) => new Date(item.summary.updatedAt).getTime())
     .reduce((max, ts) => (Number.isFinite(ts) && ts > max ? ts : max), 0)
@@ -141,7 +138,6 @@ export async function getInventoryDashboardData(
   return {
     items,
     metrics,
-    activities,
     lastRefreshed: new Date(
       latestTimestamp > 0 ? latestTimestamp : Date.now()
     ).toISOString(),

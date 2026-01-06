@@ -5,6 +5,17 @@ import * as React from "react"
 import { useFormState } from "react-dom"
 
 import {
+  createCatalogProductAction,
+  defaultCreateState,
+  defaultSeedState,
+  defaultUpdateState,
+  seedRandomProductsAction,
+  updateCatalogProductAction,
+  type CreateProductActionState,
+  type SeedProductsActionState,
+  type UpdateProductActionState,
+} from "@/app/actions/catalog-actions"
+import {
   adjustInventoryAction,
   commitReservationAction,
   createReservationAction,
@@ -37,7 +48,6 @@ import {
   ArrowCircleUpIcon,
   ArrowsClockwiseIcon,
   ClipboardTextIcon,
-  WarningOctagonIcon,
 } from "@phosphor-icons/react"
 
 type InventoryDashboardProps = {
@@ -46,6 +56,13 @@ type InventoryDashboardProps = {
 
 const adjustmentInitialState: AdjustmentActionState = { status: "idle" }
 const reservationInitialState: ReservationActionState = { status: "idle" }
+const seedInitialState: SeedProductsActionState = { ...defaultSeedState }
+const createProductInitialState: CreateProductActionState = {
+  ...defaultCreateState,
+}
+const updateProductInitialState: UpdateProductActionState = {
+  ...defaultUpdateState,
+}
 
 export function InventoryDashboard({ data }: InventoryDashboardProps) {
   const [selectedSku, setSelectedSku] = React.useState(
@@ -86,7 +103,8 @@ export function InventoryDashboard({ data }: InventoryDashboardProps) {
           />
           <AdjustmentForm selectedSku={selectedItem?.sku} />
           <ReservationForms selectedSku={selectedItem?.sku} />
-          <InventoryActivityCard activities={data.activities} />
+          <CatalogSeederCard />
+          <CatalogProductCreator />
         </div>
       </div>
     </div>
@@ -282,7 +300,10 @@ function SelectedSkuPanel({ item }: { item?: InventoryListItem }) {
     )
   }
 
-  const metadata = item.metadata
+  const attributesDisplay = Object.entries(item.attributes)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join(", ")
+  const threshold = Math.max(Math.round(item.summary.onHand * 0.25), 25)
 
   return (
     <Card className="border-border/80">
@@ -314,9 +335,19 @@ function SelectedSkuPanel({ item }: { item?: InventoryListItem }) {
             ))}
           </div>
         </div>
-        <Badge variant="secondary">{item.status}</Badge>
+        <div className="flex flex-col items-end gap-2">
+          <Badge variant="secondary">{item.productStatus}</Badge>
+          <Badge variant="outline" className="text-[10px] uppercase">
+            Variant {item.status}
+          </Badge>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {item.productDescription ? (
+          <p className="text-sm text-muted-foreground">
+            {item.productDescription}
+          </p>
+        ) : null}
         <div className="grid gap-4 md:grid-cols-3">
           <SummaryStat label="On Hand" value={item.summary.onHand} />
           <SummaryStat label="Reserved" value={item.summary.reserved} />
@@ -336,44 +367,111 @@ function SelectedSkuPanel({ item }: { item?: InventoryListItem }) {
                 : "N/A"
             }
           />
+          <DetailRow label="Brand" value={item.brand ?? "Not set"} />
           <DetailRow
-            label="Reorder Point"
-            value={
-              metadata ? formatNumber(metadata.reorderPoint) : "Not configured"
-            }
-          />
-          <DetailRow
-            label="Safety Stock"
-            value={
-              metadata ? formatNumber(metadata.safetyStock) : "Not configured"
-            }
-          />
-          <DetailRow
-            label="Bin Location"
-            value={metadata?.binLocation ?? "Not set"}
-          />
-          <DetailRow
-            label="Supplier"
-            value={metadata?.supplier ?? "Not set"}
-          />
-          <DetailRow
-            label="Lead Time"
-            value={
-              metadata ? `${metadata.leadTimeDays} days` : "Not available"
-            }
+            label="Attributes"
+            value={attributesDisplay || "No attributes"}
           />
           <DetailRow
             label="Last Updated"
             value={formatRelativeTimeFromNow(item.summary.updatedAt)}
           />
+          <DetailRow
+            label="Low-stock threshold"
+            value={`${formatNumber(threshold)} units`}
+          />
         </div>
-        {metadata?.notes ? (
-          <p className="rounded-2xl bg-muted/60 p-3 text-sm text-muted-foreground">
-            {metadata.notes}
-          </p>
-        ) : null}
+        <Separator />
+        <ProductUpdateForm key={item.productId} item={item} />
       </CardContent>
     </Card>
+  )
+}
+
+function ProductUpdateForm({ item }: { item: InventoryListItem }) {
+  const [title, setTitle] = React.useState(item.productTitle)
+  const [brand, setBrand] = React.useState(item.brand ?? "")
+  const [description, setDescription] = React.useState(
+    item.productDescription ?? ""
+  )
+  const [status, setStatus] = React.useState(item.productStatus)
+  const [state, formAction] = useFormState(
+    updateCatalogProductAction,
+    updateProductInitialState
+  )
+
+  React.useEffect(() => {
+    setTitle(item.productTitle)
+    setBrand(item.brand ?? "")
+    setDescription(item.productDescription ?? "")
+    setStatus(item.productStatus)
+  }, [item.productId, item.productStatus, item.productTitle, item.brand, item.productDescription])
+
+  return (
+    <form action={formAction} className="space-y-3">
+      <input type="hidden" name="productId" value={item.productId} />
+      <div className="grid gap-1.5">
+        <Label htmlFor={`product-title-${item.productId}`}>Title</Label>
+        <Input
+          id={`product-title-${item.productId}`}
+          name="title"
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+          required
+        />
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor={`product-brand-${item.productId}`}>Brand</Label>
+        <Input
+          id={`product-brand-${item.productId}`}
+          name="brand"
+          value={brand}
+          onChange={(event) => setBrand(event.target.value)}
+          placeholder="Nova Apparel"
+        />
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor={`product-status-${item.productId}`}>Status</Label>
+        <select
+          id={`product-status-${item.productId}`}
+          name="status"
+          value={status}
+          onChange={(event) => setStatus(event.target.value as typeof status)}
+          className="bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 h-9 rounded-4xl border px-3 text-sm transition-colors focus-visible:ring-[3px] aria-invalid:ring-[3px] outline-none"
+        >
+          <option value="draft">draft</option>
+          <option value="published">published</option>
+          <option value="archived">archived</option>
+        </select>
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor={`product-description-${item.productId}`}>
+          Description
+        </Label>
+        <Textarea
+          id={`product-description-${item.productId}`}
+          name="description"
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          rows={3}
+        />
+      </div>
+      {state.message ? (
+        <p
+          className={cn(
+            "text-sm",
+            state.status === "error"
+              ? "text-destructive"
+              : "text-muted-foreground"
+          )}
+        >
+          {state.message}
+        </p>
+      ) : null}
+      <Button type="submit" variant="outline">
+        Save product
+      </Button>
+    </form>
   )
 }
 
@@ -430,37 +528,43 @@ function LowStockWatchlist({
       <CardContent className="space-y-3">
         {items.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            All tracked SKUs are above their reorder point.
+            All tracked SKUs are above their threshold.
           </p>
         ) : (
-          items.map((item) => (
-            <button
-              key={item.sku}
-              type="button"
-              onClick={() => onSelect(item.sku)}
-              className={cn(
+          items.map((item) => {
+            const threshold = Math.max(
+              Math.round(item.summary.onHand * 0.25),
+              25
+            )
+            return (
+              <button
+                key={item.sku}
+                type="button"
+                onClick={() => onSelect(item.sku)}
+                className={cn(
                 "flex w-full items-center justify-between rounded-2xl border px-3 py-2 text-left transition hover:border-destructive/60",
                 selectedSku === item.sku
                   ? "border-destructive bg-destructive/10"
                   : "border-transparent bg-muted/30"
               )}
-            >
-              <div>
-                <p className="font-medium">{item.sku}</p>
-                <p className="text-xs text-muted-foreground">
-                  {item.productTitle}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-destructive font-semibold">
-                  {formatNumber(item.summary.available)} avail.
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  ROP {formatNumber(item.metadata?.reorderPoint ?? 0)}
-                </p>
-              </div>
-            </button>
-          ))
+              >
+                <div>
+                  <p className="font-medium">{item.sku}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {item.productTitle}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-destructive font-semibold">
+                    {formatNumber(item.summary.available)} avail.
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Min {formatNumber(threshold)}
+                  </p>
+                </div>
+              </button>
+            )
+          })
         )}
       </CardContent>
     </Card>
@@ -672,55 +776,200 @@ function ReservationForms({ selectedSku }: { selectedSku?: string }) {
   )
 }
 
-function InventoryActivityCard({
-  activities,
-}: {
-  activities: InventoryDashboardData["activities"]
-}) {
-  if (!activities?.length) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Activity</CardTitle>
-          <CardDescription>No recent events</CardDescription>
-        </CardHeader>
-      </Card>
-    )
-  }
+function CatalogSeederCard() {
+  const [state, formAction] = useFormState(
+    seedRandomProductsAction,
+    seedInitialState
+  )
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Recent Activity</CardTitle>
-        <CardDescription>Streaming from inventory service</CardDescription>
+        <CardTitle className="text-base">Catalog Seeder</CardTitle>
+        <CardDescription>
+          Quickly inject randomized products through the gateway for load or
+          demo scenarios.
+        </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {activities.map((activity) => (
-          <div
-            key={activity.id}
-            className="flex items-start gap-3 rounded-2xl border border-border/80 p-3"
-          >
-            <span className="rounded-full bg-muted p-2">
-              <WarningOctagonIcon className="size-4 text-primary" />
-            </span>
-            <div className="flex-1 space-y-1">
-              <div className="flex items-center gap-2">
-                <p className="font-semibold text-sm">{activity.type}</p>
-                <Badge variant="outline">{activity.status}</Badge>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {activity.sku} · {activity.quantity} units
-              </p>
-              {activity.details ? (
-                <p className="text-sm">{activity.details}</p>
-              ) : null}
-              <p className="text-xs text-muted-foreground">
-                {formatRelativeTimeFromNow(activity.occurredAt)} ·{" "}
-                {activity.actor}
-              </p>
+      <CardContent>
+        <form action={formAction} className="space-y-3">
+          <div className="grid gap-1.5">
+            <Label htmlFor="seed-count">Number of products</Label>
+            <Input
+              id="seed-count"
+              name="count"
+              type="number"
+              min="1"
+              max="200"
+              defaultValue={100}
+              required
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="seed-brand">Brand prefix</Label>
+            <Input
+              id="seed-brand"
+              name="brandPrefix"
+              placeholder="Nova Labs"
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="seed-category">Category prefix</Label>
+            <Input
+              id="seed-category"
+              name="categoryPrefix"
+              placeholder="apparel"
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="seed-status">Lifecycle status</Label>
+            <select
+              id="seed-status"
+              name="status"
+              className="bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 h-9 rounded-4xl border px-3 text-sm transition-colors focus-visible:ring-[3px] aria-invalid:ring-[3px] outline-none"
+              defaultValue="draft"
+            >
+              <option value="draft">Draft</option>
+              <option value="published">Published</option>
+              <option value="archived">Archived</option>
+            </select>
+          </div>
+          {state.message ? (
+            <p
+              className={cn(
+                "text-sm",
+                state.status === "error"
+                  ? "text-destructive"
+                  : "text-muted-foreground"
+              )}
+            >
+              {state.message}
+              {state.processed ? ` (processed ${state.processed})` : null}
+            </p>
+          ) : null}
+          <Button type="submit" className="w-full">
+            Generate products
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}
+
+function CatalogProductCreator() {
+  const [state, formAction] = useFormState(
+    createCatalogProductAction,
+    createProductInitialState
+  )
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Create Catalog Product</CardTitle>
+        <CardDescription>
+          Publish a single product with one variant directly from the admin UI.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form action={formAction} className="space-y-3">
+          <div className="grid gap-1.5">
+            <Label htmlFor="create-title">Title</Label>
+            <Input id="create-title" name="title" placeholder="Product name" required />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="create-brand">Brand</Label>
+            <Input id="create-brand" name="brand" placeholder="Brand" />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="create-status">Status</Label>
+            <select
+              id="create-status"
+              name="status"
+              className="bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 h-9 rounded-4xl border px-3 text-sm transition-colors focus-visible:ring-[3px] aria-invalid:ring-[3px] outline-none"
+              defaultValue="draft"
+            >
+              <option value="draft">Draft</option>
+              <option value="published">Published</option>
+              <option value="archived">Archived</option>
+            </select>
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="create-description">Description</Label>
+            <Textarea
+              id="create-description"
+              name="description"
+              rows={3}
+              placeholder="Details customers care about"
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="create-categories">Categories</Label>
+            <Input
+              id="create-categories"
+              name="categories"
+              placeholder="tops:Tops,outerwear:Outerwear"
+            />
+            <p className="text-xs text-muted-foreground">
+              Use comma separated pairs of `id:Name`.
+            </p>
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="create-sku">Variant SKU</Label>
+            <Input
+              id="create-sku"
+              name="sku"
+              placeholder="SKU-123"
+              required
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="create-price">Price</Label>
+            <div className="flex gap-2">
+              <Input
+                id="create-price"
+                name="price"
+                type="number"
+                step="0.01"
+                min="0.01"
+                placeholder="99.00"
+                className="flex-1"
+                required
+              />
+              <Input
+                name="currency"
+                defaultValue="USD"
+                className="w-24 uppercase"
+                aria-label="Currency"
+              />
             </div>
           </div>
-        ))}
+          <div className="grid gap-1.5">
+            <Label htmlFor="create-attributes">Attributes</Label>
+            <Input
+              id="create-attributes"
+              name="attributes"
+              placeholder="color:Black,size:M"
+            />
+            <p className="text-xs text-muted-foreground">
+              Comma separated key:value pairs.
+            </p>
+          </div>
+          {state.message ? (
+            <p
+              className={cn(
+                "text-sm",
+                state.status === "error"
+                  ? "text-destructive"
+                  : "text-muted-foreground"
+              )}
+            >
+              {state.message}
+            </p>
+          ) : null}
+          <Button type="submit" className="w-full" variant="secondary">
+            Create product
+          </Button>
+        </form>
       </CardContent>
     </Card>
   )

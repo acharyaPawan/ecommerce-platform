@@ -1,9 +1,10 @@
 import Link from "next/link"
 
 import { InventoryDashboard } from "@/components/inventory-dashboard"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { cn } from "@/lib/utils"
 import { formatRelativeTimeFromNow } from "@/lib/format"
 import { getInventoryDashboardData } from "@/lib/server/dashboard-data"
 import type { CatalogProductStatus } from "@/lib/types/catalog"
@@ -109,9 +110,12 @@ function FilterForm({
       </div>
       <div className="mt-4 flex items-center justify-end gap-2">
         {filtersApplied && (
-          <Button type="button" variant="ghost" asChild>
-            <Link href="/">Reset</Link>
-          </Button>
+          <Link
+            href="/"
+            className={cn(buttonVariants({ variant: "ghost" }))}
+          >
+            Reset
+          </Link>
         )}
         <Button type="submit">Apply</Button>
       </div>

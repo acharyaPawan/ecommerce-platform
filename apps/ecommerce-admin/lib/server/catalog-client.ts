@@ -2,10 +2,14 @@
 
 import "server-only"
 
-import { mockCatalogProducts } from "@/lib/mock-data"
+import {
+  GatewayRequestError,
+  gatewayFetch,
+} from "@/lib/server/gateway-client"
 import type {
   CatalogListResponse,
   CatalogProduct,
+  CatalogProductInput,
   CatalogProductStatus,
 } from "@/lib/types/catalog"
 
@@ -16,42 +20,18 @@ type ListCatalogParams = {
   cursor?: string
 }
 
-const catalogBaseUrl =
-  process.env.CATALOG_SERVICE_URL?.replace(/\/$/, "") ?? ""
-
-const catalogAuthHeader = process.env.CATALOG_SERVICE_TOKEN
-  ? { Authorization: `Bearer ${process.env.CATALOG_SERVICE_TOKEN}` }
-  : undefined
-
 export async function listCatalogProducts(
   params: ListCatalogParams = {}
 ): Promise<CatalogListResponse> {
-  if (!catalogBaseUrl) {
-    return listFromMock(params)
-  }
-
-  const url = new URL(`${catalogBaseUrl}/products`)
-  if (params.q) url.searchParams.set("q", params.q)
-  if (params.status && params.status !== "all")
-    url.searchParams.set("status", params.status)
-  if (params.limit) url.searchParams.set("limit", params.limit.toString())
-  if (params.cursor) url.searchParams.set("cursor", params.cursor)
-
-  const res = await fetch(url, {
-    headers: {
-      "Content-Type": "application/json",
-      ...catalogAuthHeader,
+  return gatewayFetch<CatalogListResponse>({
+    path: "/products",
+    searchParams: {
+      q: params.q,
+      status: params.status === "all" ? undefined : params.status,
+      limit: params.limit,
+      cursor: params.cursor,
     },
-    cache: "no-store",
   })
-
-  if (!res.ok) {
-    throw new Error(
-      `Failed to load catalog products: ${res.status} ${res.statusText}`
-    )
-  }
-
-  return (await res.json()) as CatalogListResponse
 }
 
 export async function getCatalogProduct(
@@ -59,56 +39,39 @@ export async function getCatalogProduct(
 ): Promise<CatalogProduct | null> {
   if (!productId) return null
 
-  if (!catalogBaseUrl) {
-    return mockCatalogProducts.find((product) => product.id === productId) ?? null
+  try {
+    return await gatewayFetch<CatalogProduct>({
+      path: `/products/${productId}`,
+    })
+  } catch (error) {
+    if (
+      error instanceof GatewayRequestError &&
+      error.status === 404
+    ) {
+      return null
+    }
+    throw error
   }
-
-  const url = new URL(`${catalogBaseUrl}/products/${productId}`)
-  const res = await fetch(url, {
-    headers: {
-      "Content-Type": "application/json",
-      ...catalogAuthHeader,
-    },
-    cache: "no-store",
-  })
-
-  if (res.status === 404) return null
-  if (!res.ok) {
-    throw new Error(
-      `Failed to load product ${productId}: ${res.status} ${res.statusText}`
-    )
-  }
-
-  return (await res.json()) as CatalogProduct
 }
 
-function listFromMock(params: ListCatalogParams): CatalogListResponse {
-  const status = params.status ?? "published"
-  const query = params.q?.toLowerCase().trim()
-  let items = mockCatalogProducts
+export async function createCatalogProduct(payload: CatalogProductInput) {
+  return gatewayFetch<{ productId: string }>({
+    path: "/products",
+    method: "POST",
+    body: JSON.stringify(payload),
+    idempotency: true,
+  })
+}
 
-  if (status !== "all") {
-    items = items.filter((product) => product.status === status)
-  }
-
-  if (query) {
-    items = items.filter((product) => {
-      const haystack = [
-        product.title,
-        product.description ?? "",
-        product.brand ?? "",
-      ]
-        .join(" ")
-        .toLowerCase()
-      return haystack.includes(query)
-    })
-  }
-
-  const limit = params.limit ?? 20
-  const sliced = items.slice(0, limit)
-
-  return {
-    items: sliced,
-    nextCursor: items.length > limit ? "mock-cursor" : undefined,
-  }
+export async function updateCatalogProduct(
+  productId: string,
+  payload: Partial<CatalogProductInput>
+) {
+  if (!productId) throw new Error("Product ID is required.")
+  return gatewayFetch<CatalogProduct>({
+    path: `/products/${productId}`,
+    method: "PATCH",
+    body: JSON.stringify(payload),
+    idempotency: true,
+  })
 }
