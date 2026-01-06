@@ -69,7 +69,7 @@ export const registerOrderRoutes = (app: Hono<GatewayBindings>) => {
     return c.json(data);
   });
 
-  app.post('/orders/:orderId/cancel', requireAuth({ scopes: ['orders:write'] }), async (c) => {
+  app.post('/orders/:orderId/cancel', requireAuth({ roles: ['admin'] }), async (c) => {
     const { data, status } = await callService<unknown>(c, 'orders', {
       method: 'POST',
       path: `/orders/${c.req.param('orderId')}/cancel`,
@@ -81,7 +81,7 @@ export const registerOrderRoutes = (app: Hono<GatewayBindings>) => {
     return c.json(data, status as ContentfulStatusCode);
   });
 
-  app.post('/payments/:paymentId/capture', requireAuth({ scopes: ['payments:write'] }), async (c) => {
+  app.post('/payments/:paymentId/capture', requireAuth({ roles: ['admin'] }), async (c) => {
     const { data, status } = await callService<unknown>(c, 'payments', {
       method: 'POST',
       path: `/payments/${c.req.param('paymentId')}/capture`,

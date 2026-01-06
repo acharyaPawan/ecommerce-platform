@@ -1,5 +1,7 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 
+export type UserRole = "customer" | "admin";
+
 export type AuthConfig = {
   jwksUrl?: string;
   audience?: string;
@@ -9,8 +11,7 @@ export type AuthConfig = {
 
 export type AuthenticatedUser = {
   userId: string;
-  scopes: string[];
-  roles: string[];
+  roles: UserRole[];
   expiresAt?: number;
   claims?: Record<string, unknown>;
   token?: string;
@@ -99,11 +100,10 @@ export const createUserResolver = (
     if (!userId) {
       return null;
     }
-    const roles = request.headers.get(`${header}-roles`)?.split(" ").filter(Boolean) ?? [];
-    const scopes = request.headers.get(`${header}-scopes`)?.split(" ").filter(Boolean) ?? [];
+    const roleHeader = request.headers.get(`${header}-roles`);
+    const roles = parseRoles(roleHeader);
     return {
       userId: userId.trim(),
-      scopes,
       roles,
     };
   };
@@ -124,21 +124,10 @@ export const ensureAuthenticated = <T extends AuthenticatedUser | null | undefin
   return user;
 };
 
-export const ensureScopes = (
+export const ensureRoles = (
   user: AuthenticatedUser | null | undefined,
-  scopes: string[]
+  roles: UserRole[]
 ): void => {
-  if (!scopes.length) {
-    return;
-  }
-  const principal = ensureAuthenticated(user);
-  const missing = scopes.filter((scope) => !principal.scopes.includes(scope));
-  if (missing.length) {
-    throw new AuthorizationError(`Missing scopes: ${missing.join(", ")}`, 403);
-  }
-};
-
-export const ensureRoles = (user: AuthenticatedUser | null | undefined, roles: string[]): void => {
   if (!roles.length) {
     return;
   }
@@ -161,16 +150,12 @@ const toUser = (token: string, payload: JWTPayload): AuthenticatedUser | null =>
   }
 
   const claims = payload as Record<string, unknown>;
-  const arrayScopes = Array.isArray(claims.scopes) ? (claims.scopes as string[]) : undefined;
-  const stringScopes =
-    typeof payload.scope === "string" ? payload.scope.split(" ").filter(Boolean) : undefined;
-  const scopes = arrayScopes ?? stringScopes ?? [];
-  const roles = Array.isArray(claims.roles) ? (claims.roles as string[]) : [];
+  const roles = parseRoles(claims.roles);
+  const normalizedRoles = roles.length ? roles : (["customer"] satisfies UserRole[]);
 
   return {
     userId,
-    scopes,
-    roles,
+    roles: normalizedRoles,
     expiresAt: payload.exp,
     claims,
     token,
@@ -179,3 +164,19 @@ const toUser = (token: string, payload: JWTPayload): AuthenticatedUser | null =>
 
 const stripTrailingSlash = (input: string): string =>
   input.endsWith("/") ? input.slice(0, -1) : input;
+
+const parseRoles = (source: unknown): UserRole[] => {
+  const rawRoles: string[] = Array.isArray(source)
+    ? source.filter((value): value is string => typeof value === "string")
+    : typeof source === "string"
+      ? source
+          .split(" ")
+          .map((value) => value.trim())
+          .filter(Boolean)
+      : [];
+
+  const normalized = rawRoles.filter(isUserRole);
+  return normalized.length ? Array.from(new Set(normalized)) : (["customer"] satisfies UserRole[]);
+};
+
+const isUserRole = (value: string): value is UserRole => value === "customer" || value === "admin";

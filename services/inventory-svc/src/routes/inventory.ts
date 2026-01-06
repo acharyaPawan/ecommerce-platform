@@ -1,7 +1,13 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { AuthorizationError, ensureAuthenticated, ensureScopes, type UserResolver } from "@ecommerce/core";
+import {
+  AuthorizationError,
+  ensureAuthenticated,
+  ensureRoles,
+  type UserResolver,
+  type UserRole,
+} from "@ecommerce/core";
 import { z } from "zod";
 import {
   adjustStock,
@@ -50,7 +56,7 @@ export const createInventoryApi = ({ resolveUser }: InventoryRouterDeps): Hono =
   });
 
   router.post("/adjustments", async (c) => {
-    const authResponse = await enforceAuthorization(c, resolveUser, ["inventory:write"]);
+    const authResponse = await enforceAuthorization(c, resolveUser, ["admin"]);
     if (authResponse) {
       return authResponse;
     }
@@ -80,7 +86,7 @@ export const createInventoryApi = ({ resolveUser }: InventoryRouterDeps): Hono =
   });
 
   router.post("/reservations", async (c) => {
-    const authResponse = await enforceAuthorization(c, resolveUser, ["inventory:write"]);
+    const authResponse = await enforceAuthorization(c, resolveUser, ["admin"]);
     if (authResponse) {
       return authResponse;
     }
@@ -129,7 +135,7 @@ export const createInventoryApi = ({ resolveUser }: InventoryRouterDeps): Hono =
   });
 
   router.post("/reservations/:orderId/commit", async (c) => {
-    const authResponse = await enforceAuthorization(c, resolveUser, ["inventory:write"]);
+    const authResponse = await enforceAuthorization(c, resolveUser, ["admin"]);
     if (authResponse) {
       return authResponse;
     }
@@ -157,7 +163,7 @@ export const createInventoryApi = ({ resolveUser }: InventoryRouterDeps): Hono =
   });
 
   router.post("/reservations/:orderId/release", async (c) => {
-    const authResponse = await enforceAuthorization(c, resolveUser, ["inventory:write"]);
+    const authResponse = await enforceAuthorization(c, resolveUser, ["admin"]);
     if (authResponse) {
       return authResponse;
     }
@@ -241,12 +247,12 @@ async function readJson(c: Context, options?: { optional?: boolean }): Promise<J
 async function enforceAuthorization(
   c: Context,
   resolveUser: UserResolver,
-  scopes?: string[]
+  roles?: UserRole[]
 ): Promise<Response | null> {
   try {
     const user = await resolveUser(c.req.raw);
-    if (scopes?.length) {
-      ensureScopes(user, scopes);
+    if (roles?.length) {
+      ensureRoles(user, roles);
     } else {
       ensureAuthenticated(user);
     }

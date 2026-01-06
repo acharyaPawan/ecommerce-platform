@@ -2,6 +2,8 @@ import { betterAuth } from "better-auth";
 import type { HookEndpointContext } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { createAuthMiddleware } from "better-auth/api";
+import { customSession, jwt, openAPI } from "better-auth/plugins";
+import type { UserRole } from "@ecommerce/core";
 import db from "./db/index.js";
 import { iamOutboxEvents } from "./db/schema.js";
 import {
@@ -9,8 +11,6 @@ import {
   IamEventType,
   makeIamEnvelope,
 } from "./contracts/iam-events.js";
-import { customSession, jwt, openAPI } from "better-auth/plugins";
-export type UserRole = "customer" | "admin";
 
 const SIGN_UP_EMAIL_PATH = "/sign-up/email";
 const SIGN_IN_EMAIL_PATH = "/sign-in/email";

@@ -1,3 +1,5 @@
+export type { AuthenticatedUser } from '@ecommerce/core';
+import type { AuthenticatedUser } from '@ecommerce/core';
 import type { DownstreamClients } from './clients/types.js';
 import type { Logger } from './logger.js';
 
@@ -32,15 +34,6 @@ export interface GatewayConfig {
     devUserHeader: string;
   };
   services: Record<ServiceTarget, ServiceConfig>;
-}
-
-export interface AuthenticatedUser {
-  userId: string;
-  scopes: string[];
-  roles: string[];
-  expiresAt?: number;
-  claims?: Record<string, unknown>;
-  token?: string;
 }
 
 export interface RequestContextState {

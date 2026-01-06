@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { AuthorizationError, ensureScopes, type UserResolver } from "@ecommerce/core";
+import { AuthorizationError, ensureRoles, type UserResolver } from "@ecommerce/core";
 import { z } from "zod";
 import { createProduct } from "../catalog/service.js";
 import { createProductSchema } from "../catalog/schemas.js";
@@ -60,7 +60,7 @@ export const createCatalogApi = ({ resolveUser }: CatalogRouterDeps): Hono => {
   router.post("/products", async (c) => {
     try {
       const user = await resolveUser(c.req.raw);
-      ensureScopes(user, ["catalog:write"]);
+      ensureRoles(user, ["admin"]);
     } catch (error) {
       if (error instanceof AuthorizationError) {
         return c.json(

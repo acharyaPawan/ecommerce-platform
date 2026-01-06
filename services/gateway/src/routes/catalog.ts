@@ -25,7 +25,7 @@ export const registerCatalogRoutes = (app: Hono<GatewayBindings>) => {
     return c.json(data);
   });
 
-  app.post('/products', requireAuth({ scopes: ['catalog:write'] }), async (c) => {
+  app.post('/products', requireAuth({ roles: ['admin'] }), async (c) => {
     const { data, status } = await callService<unknown>(c, 'catalog', {
       method: 'POST',
       path: 'api/catalog/products',

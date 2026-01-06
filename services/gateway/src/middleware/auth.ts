@@ -1,3 +1,4 @@
+import type { UserRole } from '@ecommerce/core';
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
 import { createMiddleware } from 'hono/factory';
 import type { GatewayConfig, AuthenticatedUser } from '../types.js';
@@ -54,12 +55,10 @@ class JwtAuthProvider implements AuthProvider {
   }
 
   private toPrincipal(token: string, payload: JWTPayload): AuthenticatedUser {
-    const scopes = typeof payload.scope === 'string' ? payload.scope.split(' ') : [];
-    const roles = Array.isArray(payload.roles) ? (payload.roles as string[]) : [];
+    const roles = parseRoles(payload.roles);
 
     return {
       userId: payload.sub ?? '',
-      scopes,
       roles,
       expiresAt: payload.exp,
       claims: payload as Record<string, unknown>,
@@ -76,12 +75,10 @@ class HeaderPassthroughAuthProvider implements AuthProvider {
     if (!userId) {
       return null;
     }
-    const scopes = (request.headers.get(`${this.header}-scopes`) ?? '').split(' ').filter(Boolean);
-    const roles = (request.headers.get(`${this.header}-roles`) ?? '').split(' ').filter(Boolean);
+    const roles = parseRoles(request.headers.get(`${this.header}-roles`));
 
     return {
       userId,
-      scopes,
       roles,
     };
   }
@@ -121,8 +118,7 @@ export const attachUser = (provider: AuthProvider) =>
   });
 
 interface AuthorizationOptions {
-  scopes?: string[];
-  roles?: string[];
+  roles?: UserRole[];
 }
 
 export const requireAuth = (options?: AuthorizationOptions) =>
@@ -137,19 +133,6 @@ export const requireAuth = (options?: AuthorizationOptions) =>
         },
         { status: 401 },
       );
-    }
-
-    if (options?.scopes?.length) {
-      const hasScopes = options.scopes.every((scope) => user.scopes.includes(scope));
-      if (!hasScopes) {
-        return c.json(
-          {
-            error: 'forbidden',
-            message: 'Insufficient scope',
-          },
-          { status: 403 },
-        );
-      }
     }
 
     if (options?.roles?.length) {
@@ -167,3 +150,16 @@ export const requireAuth = (options?: AuthorizationOptions) =>
 
     return next();
   });
+
+const parseRoles = (source: unknown): UserRole[] => {
+  const raw: string[] = Array.isArray(source)
+    ? source.filter((value): value is string => typeof value === 'string')
+    : typeof source === 'string'
+      ? source
+          .split(' ')
+          .map((value) => value.trim())
+          .filter(Boolean)
+      : [];
+  const normalized = raw.filter((value): value is UserRole => value === 'admin' || value === 'customer');
+  return normalized.length ? Array.from(new Set(normalized)) : ['customer'];
+};

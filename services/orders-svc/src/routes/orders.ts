@@ -4,9 +4,10 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import {
   AuthorizationError,
   ensureAuthenticated,
-  ensureScopes,
+  ensureRoles,
   type AuthenticatedUser,
   type UserResolver,
+  type UserRole,
 } from "@ecommerce/core";
 import { z } from "zod";
 import type { OrdersServiceConfig } from "../config.js";
@@ -70,17 +71,16 @@ export const createOrdersRouter = ({ resolveUser, config }: OrdersRouterDeps): H
       return c.json({ error: "Order not found" }, 404);
     }
 
-    if (record.userId && record.userId !== auth.user.userId) {
-      if (!auth.user.scopes.includes("orders:write")) {
-        return c.json({ error: "forbidden" }, 403);
-      }
+    const isAdmin = auth.user.roles.includes("admin");
+    if (!isAdmin && record.userId && record.userId !== auth.user.userId) {
+      return c.json({ error: "forbidden" }, 403);
     }
 
     return c.json(serializeOrder(record));
   });
 
   router.post("/:orderId/cancel", async (c) => {
-    const auth = await authenticate(c, resolveUser, { scopes: ["orders:write"] });
+    const auth = await authenticate(c, resolveUser);
     if (auth.response) {
       return auth.response;
     }
@@ -98,6 +98,18 @@ export const createOrdersRouter = ({ resolveUser, config }: OrdersRouterDeps): H
     const parsed = cancelRequestSchema.safeParse(body.data ?? {});
     if (!parsed.success) {
       return c.json({ error: "Validation failed", details: parsed.error.flatten() }, 422);
+    }
+
+    const existingOrder = await getOrderById(orderId);
+    if (!existingOrder) {
+      return c.json({ error: "Order not found" }, 404);
+    }
+
+    const isAdmin = auth.user.roles.includes("admin");
+    if (!isAdmin) {
+      if (!existingOrder.userId || existingOrder.userId !== auth.user.userId) {
+        return c.json({ error: "forbidden" }, 403);
+      }
     }
 
     const result = await cancelOrder(orderId, parsed.data.reason);
@@ -149,12 +161,12 @@ type AuthResult =
 async function authenticate(
   c: Context,
   resolveUser: UserResolver,
-  options?: { scopes?: string[] }
+  options?: { roles?: UserRole[] }
 ): Promise<AuthResult> {
   try {
     const resolved = await resolveUser(c.req.raw);
-    if (options?.scopes?.length) {
-      ensureScopes(resolved, options.scopes);
+    if (options?.roles?.length) {
+      ensureRoles(resolved, options.roles);
       return { user: ensureAuthenticated(resolved) };
     }
     const user = ensureAuthenticated(resolved);
