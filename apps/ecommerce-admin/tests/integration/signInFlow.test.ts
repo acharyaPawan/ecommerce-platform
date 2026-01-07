@@ -132,11 +132,11 @@ describe.todo('Authentication Flow - Integration Tests', () => {
         });
 
         it('should invalidate token after logout', async () => {
-            await authClient.signOut();
+            await authClient.signOut()
             const { data, error } = await authClient.token();
 
             const JWKS = createRemoteJWKSet(
-                new URL(`${env.NEXT_PUBLIC_BETTER_AUTH_URL}/api/auth/jwks`)
+                new URL(`${env.NEXT_PUBLIC_APP_URL}/api/auth/jwks`)
             )
             assert.exists(data?.token)
             const { payload } = await jwtVerify(data?.token, JWKS, {

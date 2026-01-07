@@ -12,7 +12,6 @@ export function Providers({ children }: { children: ReactNode }) {
 
     return (
         <AuthUIProvider
-        //@ts-ignore
             authClient={authClient}
             navigate={router.push}
             replace={router.replace}
