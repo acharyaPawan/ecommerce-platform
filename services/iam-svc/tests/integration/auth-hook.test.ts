@@ -28,7 +28,7 @@ describe("Better-auth hooks works", () => {
         await applyMigrations(db);
         ({ default: app } = await import('../../src/app'));
 
-        server = await setupServer(app, 3001);
+        server = await setupServer(app, 3002);
     }, 60000 )
 
     afterAll(async () => {
@@ -106,8 +106,8 @@ describe("Better-auth hooks works", () => {
             ]
         } as const;
         type resType = FromSchema<typeof resSchema>
-        console.log('Sending request to http://localhost:3001/api/auth/sign-up/email')
-        const res = await fetch('http://localhost:3001/api/auth/sign-up/email', {
+        console.log('Sending request to http://localhost:3002/api/auth/sign-up/email')
+        const res = await fetch('http://localhost:3002/api/auth/sign-up/email', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -140,7 +140,6 @@ describe("Better-auth hooks works", () => {
             limit: 5,
             orderBy: (iamOutboxEvents, {desc}) => [desc(iamOutboxEvents.createdAt)],
         	// we donot need error, for single test case
-
         })
         console.log('Got: ', JSON.stringify(result, null, 3));
         expect(result[0]).toMatchObject(dbEntry)

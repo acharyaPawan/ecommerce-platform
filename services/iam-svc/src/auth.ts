@@ -54,6 +54,11 @@ export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
   }),
+  user: {
+    deleteUser: {
+      enabled: true,
+    }
+  },
   plugins: [
     openAPI(),  
     jwt({
