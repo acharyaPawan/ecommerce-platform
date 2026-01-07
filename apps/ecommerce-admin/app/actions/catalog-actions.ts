@@ -6,11 +6,11 @@ import { faker } from "@faker-js/faker"
 import {
   createCatalogProduct,
   updateCatalogProduct,
-} from "@/lib/server/catalog-client"
+} from "@/lib/server/catalog-client";
 import type {
   CatalogProductInput,
   CatalogProductStatus,
-} from "@/lib/types/catalog"
+} from "@/lib/types/catalog";
 import {
   type SeedProductsActionState,
   type CreateProductActionState,
@@ -19,7 +19,7 @@ import {
   createProductInitialState,
   updateProductInitialState,
   type BaseActionState,
-} from "@/lib/actions/catalog-action-state"
+} from "@/lib/actions/catalog-action-state";
 
 export async function seedRandomProductsAction(
   _prev: SeedProductsActionState,

@@ -4,7 +4,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { createAuthMiddleware } from "better-auth/api";
 import { customSession, jwt, openAPI } from "better-auth/plugins";
 import type { UserRole } from "@ecommerce/core";
-import db from "./db/index.js";
+import db from "./db/index";
 import { iamOutboxEvents } from "./db/schema.js";
 import {
   AnyIamEvent,
@@ -52,7 +52,7 @@ export const mapToOutboxEvent = (event: AnyIamEvent) => {
 };
 
 export const auth = betterAuth({
-  trustedOrigins: ['*'],
+  trustedOrigins: ['*', 'http://localhost:3000'],
   database: drizzleAdapter(db, {
     provider: "pg",
   }),
@@ -104,6 +104,7 @@ export const auth = betterAuth({
           createdAt: session.createdAt,
           updatedAt: session.updatedAt,
           userId: session.userId,
+          roles
         },
         user: {
           id: sessionUser.id,
@@ -132,6 +133,8 @@ export const auth = betterAuth({
       if (!token) {
         return;
       }
+
+
 
       const existingSession = await db.query.session.findFirst({
         where: (sessions, { eq }) => eq(sessions.token, token),

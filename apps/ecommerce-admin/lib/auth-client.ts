@@ -4,7 +4,7 @@ import { customSessionClient } from "better-auth/client/plugins"
 import { env } from "@/env/client"
 
 export const authClient = createAuthClient({
-    baseURL: env.NEXT_PUBLIC_APP_URL,
+    baseURL: env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001',
 	plugins: [
 		// jwtClient(),
         inferAdditionalFields({

@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach, afterEach, assert, vi, beforeAll } fr
 
 
 describe.todo('Authentication Flow - Integration Tests', () => {
-    let authClient: typeof import('@/lib/auth-client').authClient
+    let authClient: typeof import('@/lib/auth-client').authClient;
 
     const testUser = {
             email: 'test@example.com',
@@ -138,7 +138,7 @@ describe.todo('Authentication Flow - Integration Tests', () => {
             const JWKS = createRemoteJWKSet(
                 new URL(`${env.NEXT_PUBLIC_APP_URL}/api/auth/jwks`)
             )
-            assert.exists(data?.token)
+            assert.exists(data?.token);
             const { payload } = await jwtVerify(data?.token, JWKS, {
                 issuer: 'https://your-auth-service.com',
                 audience: 'https://your-auth-service.com',

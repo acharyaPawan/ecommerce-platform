@@ -6,7 +6,7 @@ import {
   pgSchema,
   jsonb,
 } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import type { UserRole } from "@ecommerce/core";
 
 export const auth = pgSchema("auth");
@@ -101,3 +101,24 @@ export const jwks = auth.table("jwks", {
   privateKey: text("private_key").notNull(),
   createdAt: timestamp("created_at").notNull(),
 });
+
+
+
+export const userRelations = relations(user, ({ many }) => ({
+  sessions: many(session),
+  accounts: many(account),
+}));
+
+export const sessionRelations = relations(session, ({ one }) => ({
+  user: one(user, {
+    fields: [session.userId],
+    references: [user.id],
+  }),
+}));
+
+export const accountRelations = relations(account, ({ one }) => ({
+  user: one(user, {
+    fields: [account.userId],
+    references: [user.id],
+  }),
+}));

@@ -35,7 +35,6 @@ describe("JWT verification using JWKS", () => {
     vi.resetModules();
     const dbModule = await import("../../src/db");
     db = dbModule.default;
-    pool = dbModule.pool;
     await applyMigrations(db);
 
     ({ default: app } = await import("../../src/app"));
@@ -49,7 +48,7 @@ describe("JWT verification using JWKS", () => {
     await fetch(`${BASE_URL}/testing/test-users`, { method: "DELETE" }).catch(() => undefined);
     harness?.restoreFetch();
     await server?.close();
-    await pool?.end();
+    // await pool?.end();
     await pgContainer?.stop();
   });
 
