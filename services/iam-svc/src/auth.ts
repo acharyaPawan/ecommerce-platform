@@ -20,6 +20,7 @@ const SIGN_OUT_PATH = "/sign-out";
 const SIGN_OUT_STATE_KEY = "__iamSignOutState";
 const DEFAULT_ROLE: UserRole = "customer";
 const ROLE_ORDER: readonly UserRole[] = ["admin", "customer"];
+const ADMIN_EMAIL_SET = new Set(parseEnvEmailList(process.env.IAM_ADMIN_EMAILS));
 
 type SignOutState = {
   token: string;
@@ -51,6 +52,7 @@ export const mapToOutboxEvent = (event: AnyIamEvent) => {
 };
 
 export const auth = betterAuth({
+  trustedOrigins: ['*'],
   database: drizzleAdapter(db, {
     provider: "pg",
   }),
@@ -303,14 +305,29 @@ async function handleSignedOutEvent(
 }
 
 function extractUserRoles(user: unknown): UserRole[] {
+  const email = getUserEmail(user);
+  if (email && isAdminEmail(email)) {
+    return ["admin"];
+  }
+
   if (!user || typeof user !== "object") {
     return [DEFAULT_ROLE];
   }
+
   const normalized = normalizeRoles((user as { roles?: unknown }).roles);
   if (normalized.length === 0) {
     return [DEFAULT_ROLE];
   }
   return normalized;
+}
+
+function getUserEmail(user: unknown): string | undefined {
+  if (!user || typeof user !== "object") {
+    return undefined;
+  }
+
+  const value = (user as { email?: unknown }).email;
+  return typeof value === "string" ? value : undefined;
 }
 
 function normalizeRoles(value: unknown): UserRole[] {
@@ -343,6 +360,21 @@ function normalizeRoles(value: unknown): UserRole[] {
 
 function isUserRole(value: string): value is UserRole {
   return value === "admin" || value === "customer";
+}
+
+function parseEnvEmailList(value: string | undefined): string[] {
+  if (!value) {
+    return [];
+  }
+
+  return value
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isAdminEmail(email: string): boolean {
+  return ADMIN_EMAIL_SET.has(email.trim().toLowerCase());
 }
 
 function getHeaderValue(headers: Headers | HeadersInit | undefined, name: string): string | undefined {
