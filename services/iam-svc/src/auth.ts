@@ -59,8 +59,15 @@ export const auth = betterAuth({
       enabled: true,
     }
   },
+  session: {
+    cookieCache: {
+      enabled: true,
+      maxAge: 5 * 60, // 5 minutes
+      // strategy: "jwt" // or "jwe" or "compact"
+    }
+  },
   plugins: [
-    openAPI(),  
+    openAPI(),
     jwt({
       jwks: {
         keyPairConfig: {
@@ -311,9 +318,9 @@ function normalizeRoles(value: unknown): UserRole[] {
     ? value.filter((role): role is string => typeof role === "string")
     : typeof value === "string"
       ? value
-          .split(",")
-          .map((role) => role.trim())
-          .filter(Boolean)
+        .split(",")
+        .map((role) => role.trim())
+        .filter(Boolean)
       : [];
 
   const allowed = values.filter(isUserRole);

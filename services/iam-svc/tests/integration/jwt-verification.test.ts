@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Pool } from "pg";
 import type { ServerType } from "@hono/node-server";
 import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
-import { createRemoteJWKSet, jwtVerify } from "jose";
+import { verifyAuthToken } from "@ecommerce/core";
 import type { AppType } from "../../src/app";
 import { applyMigrations, setupDockerTestDb, setupServer } from "./test-utils";
 import {
@@ -75,16 +75,18 @@ describe("JWT verification using JWKS", () => {
       const token = tokenResult.data?.token;
       expect(typeof token).toBe("string");
 
-      const JWKS = createRemoteJWKSet(new URL(`${BASE_URL}/api/auth/jwks`));
-      const { payload } = await jwtVerify(token!, JWKS, {
+      const payload = await verifyAuthToken(token!, {
+        jwksUrl: `${BASE_URL}/api/auth/jwks`,
         issuer: BASE_URL,
         audience: BASE_URL,
       });
 
-      console.log('Got payload ', payload);
       expect(payload.userId).toBe(userId);
       expect(payload.email).toBe(credentials.email);
+      expect(payload.name).toBe(credentials.name);
+      expect(payload.emailVerified).toBe(false);
       expect(payload.sessionId).toBeTruthy();
+      expect(payload.roles).toEqual(["customer"]);
     },
     90_000
   );
