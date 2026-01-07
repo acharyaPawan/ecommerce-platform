@@ -5,8 +5,11 @@ import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { user } from "../../src/db/schema";
 import type { AppType } from "../../src/app";
 import { applyMigrations, setupDockerTestDb, setupServer } from "./test-utils";
-
-type AuthClient = typeof import("../../src/lib/auth-client")["authClient"];
+import {
+  setupAuthClientHarness,
+  type AuthClient,
+  type AuthClientHarness,
+} from "./auth-client-helper";
 
 describe("test user cleanup route", () => {
   const SERVER_PORT = 3211;
@@ -18,8 +21,7 @@ describe("test user cleanup route", () => {
   let server: ServerType;
   let pgContainer: StartedPostgreSqlContainer;
   let authClient: AuthClient;
-  let originalFetch: typeof fetch;
-  let cookieJar: CookieJar;
+  let harness: AuthClientHarness | undefined;
 
   beforeAll(async () => {
     const docker = await setupDockerTestDb();
@@ -27,7 +29,6 @@ describe("test user cleanup route", () => {
     process.env.DATABASE_URL = docker.connectionString;
     process.env.BASE_URL = BASE_URL;
     process.env.BETTER_AUTH_URL = BASE_URL;
-    vi.stubEnv('BETTER_AUTH_URL', BASE_URL)
 
     vi.resetModules();
     const dbModule = await import("../../src/db");
@@ -38,15 +39,13 @@ describe("test user cleanup route", () => {
     ({ default: app } = await import("../../src/app"));
     server = await setupServer(app, SERVER_PORT);
 
-    originalFetch = globalThis.fetch;
-    cookieJar = new CookieJar();
-    globalThis.fetch = createCookieFetch(originalFetch, cookieJar);
-
-    ({ authClient } = await import("../../src/lib/auth-client"));
+    harness = await setupAuthClientHarness();
+    authClient = harness.authClient;
   }, 120_000);
 
   afterAll(async () => {
-    globalThis.fetch = originalFetch;
+    await fetch(`${BASE_URL}/testing/test-users`, { method: "DELETE" }).catch(() => undefined);
+    harness?.restoreFetch();
     await server?.close();
     await pool?.end();
     await pgContainer?.stop();
@@ -169,86 +168,4 @@ async function cleanupTestUsers(baseUrl: string): Promise<void> {
   if (!response.ok) {
     throw new Error(`Failed to cleanup test users: ${response.status}`);
   }
-}
-
-class CookieJar {
-  private store = new Map<string, Map<string, string>>();
-
-  getCookieHeader(url: URL): string | undefined {
-    const bucket = this.store.get(url.host);
-    if (!bucket || bucket.size === 0) {
-      return undefined;
-    }
-    return Array.from(bucket.entries())
-      .map(([name, value]) => `${name}=${value}`)
-      .join("; ");
-  }
-
-  storeFromResponse(url: URL, headers: Headers): void {
-    for (const raw of getSetCookies(headers)) {
-      this.storeCookie(url.host, raw);
-    }
-  }
-
-  private storeCookie(host: string, raw: string): void {
-    const [nameValue, ...attributes] = raw.split(";");
-    const [name, ...valueParts] = nameValue.trim().split("=");
-    if (!name) {
-      return;
-    }
-    const value = valueParts.join("=") ?? "";
-    const attrMap = attributes.reduce<Record<string, string>>((acc, attr) => {
-      const [key, ...rest] = attr.trim().split("=");
-      if (key) {
-        acc[key.toLowerCase()] = rest.join("=") ?? "";
-      }
-      return acc;
-    }, {});
-
-    const targetBucket = this.store.get(host) ?? new Map<string, string>();
-    const maxAge = attrMap["max-age"];
-    const expires = attrMap["expires"];
-    if (maxAge && Number(maxAge) <= 0) {
-      targetBucket.delete(name);
-    } else if (expires && Date.parse(expires) <= Date.now()) {
-      targetBucket.delete(name);
-    } else {
-      targetBucket.set(name, value);
-    }
-    if (targetBucket.size > 0) {
-      this.store.set(host, targetBucket);
-    } else {
-      this.store.delete(host);
-    }
-  }
-}
-
-function getSetCookies(headers: Headers): string[] {
-  const experimental = (headers as Headers & { getSetCookie?: () => string[] }).getSetCookie;
-  if (typeof experimental === "function") {
-    return experimental.call(headers) ?? [];
-  }
-  const header = headers.get("set-cookie");
-  return header ? [header] : [];
-}
-
-function createCookieFetch(target: typeof fetch, jar: CookieJar): typeof fetch {
-  return async (
-    input: Parameters<typeof fetch>[0],
-    init?: Parameters<typeof fetch>[1]
-  ): Promise<Response> => {
-    const request = new Request(input, init);
-    const url = new URL(request.url);
-    const headers = new Headers(request.headers);
-    const cookieHeader = jar.getCookieHeader(url);
-    if (cookieHeader) {
-      const existing = headers.get("cookie");
-      headers.set("cookie", existing ? `${existing}; ${cookieHeader}` : cookieHeader);
-    }
-
-    const proxiedRequest = new Request(request, { headers });
-    const response = await target(proxiedRequest);
-    jar.storeFromResponse(url, response.headers);
-    return response;
-  };
 }

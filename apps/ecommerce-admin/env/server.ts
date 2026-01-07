@@ -6,8 +6,8 @@ export const env = createEnv({
     DATABASE_URL: z.string().url().optional(),
     GATEWAY_BASE_URL: z.string().url(),
     GATEWAY_ADMIN_TOKEN: z.string().min(1).optional(),
-    BETTER_AUTH_URL: z.string().url(),
-    BETTER_AUTH_SECRET: z.string()
+    // BETTER_AUTH_URL: z.string().url(),
+    // BETTER_AUTH_SECRET: z.string()
   },
   // If you're using Next.js < 13.4.4, you'll need to specify the runtimeEnv manually
   // runtimeEnv: {
