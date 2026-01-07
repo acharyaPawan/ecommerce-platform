@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { createUserResolver } from "@ecommerce/core";
 import { loadConfig, type OrdersServiceConfig } from "./config.js";
 import { createOrdersRouter } from "./routes/orders.js";
 
@@ -8,7 +7,6 @@ const config = loadConfig();
 export const app = createApp(config);
 
 function createApp(appConfig: OrdersServiceConfig): Hono {
-  const resolveUser = createUserResolver(appConfig.auth);
   const app = new Hono();
 
   app
@@ -16,7 +14,7 @@ function createApp(appConfig: OrdersServiceConfig): Hono {
     .get("/healthz", (c) => c.json({ status: "healthy" }))
     .get("/readyz", (c) => c.json({ status: "ready" }));
 
-  const buildOrdersRouter = () => createOrdersRouter({ resolveUser, config: appConfig });
+  const buildOrdersRouter = () => createOrdersRouter({ config: appConfig });
   app.route("/api/orders", buildOrdersRouter());
   app.route("/orders", buildOrdersRouter());
 

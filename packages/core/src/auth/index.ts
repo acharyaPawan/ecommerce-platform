@@ -141,7 +141,7 @@ export const ensureRoles = (
 export interface VerifyAuthTokenOptions {
   jwksUrl: string;
   issuer: string;
-  audience: string;
+  audience?: string;
 }
 
 export type VerifiedAuthTokenPayload = {
@@ -161,9 +161,53 @@ export const verifyAuthToken = async (
   const jwks = createRemoteJWKSet(new URL(options.jwksUrl));
   const { payload } = await jwtVerify(token, jwks, {
     issuer: options.issuer,
-    audience: options.audience,
+    ...(options.audience ? { audience: options.audience } : {}),
   });
   return mapPayloadToVerifiedToken(token, payload);
+};
+
+export interface ReadBearerTokenOptions {
+  optional?: boolean;
+}
+
+export const readBearerToken = (
+  request: Request,
+  options: ReadBearerTokenOptions = {}
+): string | null => {
+  const header = request.headers.get("authorization");
+  if (!header?.trim()) {
+    if (options.optional) {
+      return null;
+    }
+    throw new AuthorizationError("Authentication required", 401);
+  }
+
+  const normalized = header.trim();
+  if (!normalized.toLowerCase().startsWith("bearer ")) {
+    throw new AuthorizationError("Invalid Authorization header", 401);
+  }
+
+  const token = normalized.slice(7).trim();
+  if (!token.length) {
+    throw new AuthorizationError("Authentication required", 401);
+  }
+  return token;
+};
+
+export const resolveVerifyAuthTokenOptions = (config: AuthConfig): VerifyAuthTokenOptions => {
+  const jwksUrl = config.jwksUrl?.trim();
+  const issuer = config.issuer?.trim();
+  const audience = config.audience?.trim();
+
+  if (!jwksUrl || !issuer) {
+    throw new Error("Auth config missing jwksUrl or issuer for JWT verification");
+  }
+
+  return {
+    jwksUrl,
+    issuer,
+    ...(audience ? { audience } : {}),
+  };
 };
 
 const toUser = (token: string, payload: JWTPayload): AuthenticatedUser | null => {
