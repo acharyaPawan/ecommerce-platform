@@ -174,7 +174,7 @@ export async function serviceFetch<TResponse>({
   if (!requestHeaders.has("Content-Type")) {
     requestHeaders.set("Content-Type", "application/json")
   }
-  if (authToken) {
+  if (authToken && service !== "iam") {
     requestHeaders.set("Authorization", `Bearer ${authToken}`)
   }
   if (idempotency) {
