@@ -4,6 +4,7 @@ import type { EventEnvelope } from "@ecommerce/events";
 import { and, asc, eq } from "drizzle-orm";
 import db from "../db/index.js";
 import { iamOutboxEvents } from "../db/schema.js";
+import { logger } from "../logger.js";
 
 type IamOutboxRecord = typeof iamOutboxEvents.$inferSelect;
 
@@ -27,7 +28,7 @@ export class IamOutboxPublisherWorker {
   ) { }
 
   async start(): Promise<void> {
-    console.log(
+    logger.info(
       `${WORKER_NAME} starting (batchSize=${this.options.batchSize}, pollInterval=${this.options.pollIntervalMs}ms)`
     );
 
@@ -41,7 +42,7 @@ export class IamOutboxPublisherWorker {
       }
     }
 
-    console.log(`${WORKER_NAME} stopped`);
+    logger.info(`${WORKER_NAME} stopped`);
   }
 
   async stop(): Promise<void> {
@@ -56,7 +57,10 @@ export class IamOutboxPublisherWorker {
   }
 
   private async publishNextBatch(): Promise<number> {
-    console.log('here db is: ', process.env.DATABASE_URL)
+    logger.info(
+      { databaseUrl: process.env.DATABASE_URL },
+      "here db is:"
+    );
     const pendingEvents = await db
       .select()
       .from(iamOutboxEvents)
@@ -66,11 +70,14 @@ export class IamOutboxPublisherWorker {
 
 
     if (pendingEvents.length === 0) {
-      console.log('[iam-outbox-publisher]: No events in db to publish.')
+      logger.info("[iam-outbox-publisher]: No events in db to publish.");
       return 0;
     }
 
-    console.log('iam_outbox_publisher got', JSON.stringify(pendingEvents, null, 3))
+    logger.info(
+      { pendingEvents },
+      "iam_outbox_publisher got"
+    );
 
     let publishedCount = 0;
     for (const record of pendingEvents) {
@@ -85,7 +92,7 @@ export class IamOutboxPublisherWorker {
         await this.broker.publish(event);
         await this.markPublished(record.id);
         publishedCount += 1;
-        console.log('published one')
+        logger.info("published one");
       } catch (error) {
         console.error(`${WORKER_NAME} failed to publish event ${record.id}`, error);
         await this.markFailed(record.id, error);
@@ -206,7 +213,7 @@ export async function runIamOutboxPublisherWorker(): Promise<void> {
   });
 
   const shutdown = async () => {
-    console.log(`${WORKER_NAME} shutting down`);
+    logger.info(`${WORKER_NAME} shutting down`);
     await worker.stop();
     process.exit(0);
   };

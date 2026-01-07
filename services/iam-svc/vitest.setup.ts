@@ -3,6 +3,7 @@ import { serve } from '@hono/node-server'
 
 import dotenv from "dotenv";
 import app from "./src/app";
+import { logger } from "./src/logger";
 
 dotenv.config({ path: ".env.test" });
 
@@ -27,6 +28,6 @@ dotenv.config({ path: ".env.test" });
 //   fetch: app.fetch,
 //   port: Number(process.env.PORT) ?? 3001,
 // });
-console.log(`[iam-svc] listening on port ${process.env.PORT ?? 3001}`);
+logger.info(`[iam-svc] listening on port ${process.env.PORT ?? 3001}`);
     
 //spin up db
