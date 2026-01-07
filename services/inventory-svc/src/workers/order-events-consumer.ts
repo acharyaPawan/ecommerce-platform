@@ -16,6 +16,7 @@ import {
   releaseReservation,
   reserveStock,
 } from "../inventory/service.js";
+import logger from "../logger.js";
 
 const WORKER_NAME = "[inventory-order-consumer]";
 
@@ -23,7 +24,7 @@ export class OrderEventsConsumer {
   constructor(private readonly broker: RabbitMqClient, private readonly queueName: string) {}
 
   async start(): Promise<void> {
-    console.log(`${WORKER_NAME} initializing (queue=${this.queueName})`);
+    logger.info(`${WORKER_NAME} initializing (queue=${this.queueName})`);
     await this.broker.subscribe({
       queue: this.queueName,
       routingKey: "orders.#",
@@ -34,7 +35,7 @@ export class OrderEventsConsumer {
       routingKey: "payments.#",
       handler: this.onMessage,
     });
-    console.log(`${WORKER_NAME} listening for order + payment events`);
+    logger.info(`${WORKER_NAME} listening for order + payment events`);
   }
 
   async stop(): Promise<void> {
@@ -56,7 +57,7 @@ export class OrderEventsConsumer {
         await this.handlePaymentFailed(paymentFailedEventSchema.parse(event));
         break;
       default:
-        console.warn(`${WORKER_NAME} skipping unsupported event type ${event.type}`);
+        logger.warn(`${WORKER_NAME} skipping unsupported event type ${event.type}`);
     }
   };
 
@@ -76,18 +77,18 @@ export class OrderEventsConsumer {
     );
 
     if (result.status === "duplicate") {
-      console.log(`${WORKER_NAME} duplicate OrderPlaced ${event.payload.orderId}`);
+      logger.warn(`${WORKER_NAME} duplicate OrderPlaced ${event.payload.orderId}`);
       return;
     }
 
     if (result.status === "failed") {
-      console.warn(
+      logger.warn(
         `${WORKER_NAME} reservation failed for ${event.payload.orderId} (${result.reason})`
       );
       return;
     }
 
-    console.log(
+    logger.info(
       `${WORKER_NAME} reserved stock for ${event.payload.orderId} (items=${result.items.length})`
     );
   }
@@ -101,16 +102,16 @@ export class OrderEventsConsumer {
     });
 
     if (result.status === "duplicate") {
-      console.log(`${WORKER_NAME} duplicate PaymentAuthorized ${event.payload.orderId}`);
+      logger.warn(`${WORKER_NAME} duplicate PaymentAuthorized ${event.payload.orderId}`);
       return;
     }
 
     if (result.status === "noop") {
-      console.log(`${WORKER_NAME} no active reservation for ${event.payload.orderId}`);
+      logger.warn(`${WORKER_NAME} no active reservation for ${event.payload.orderId}`);
       return;
     }
 
-    console.log(`${WORKER_NAME} committed stock for ${event.payload.orderId}`);
+    logger.info(`${WORKER_NAME} committed stock for ${event.payload.orderId}`);
   }
 
   private async handleOrderCanceled(event: OrderCanceledEvent): Promise<void> {
@@ -134,15 +135,15 @@ export class OrderEventsConsumer {
     });
 
     if (result.status === "duplicate") {
-      console.log(`${WORKER_NAME} duplicate release for ${orderId}`);
+      logger.warn(`${WORKER_NAME} duplicate release for ${orderId}`);
       return;
     }
 
     if (result.status === "noop") {
-      console.log(`${WORKER_NAME} no active reservation to release for ${orderId}`);
+      logger.warn(`${WORKER_NAME} no active reservation to release for ${orderId}`);
       return;
     }
 
-    console.log(`${WORKER_NAME} released reservation for ${orderId} (${reason})`);
+    logger.info(`${WORKER_NAME} released reservation for ${orderId} (${reason})`);
   }
 }

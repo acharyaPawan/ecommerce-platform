@@ -19,6 +19,7 @@ import {
   releaseReservation,
   reserveStock,
 } from "../inventory/service.js";
+import logger from "../logger.js";
 
 type InventoryRouterDeps = {
   auth: AuthConfig;
@@ -54,7 +55,7 @@ export const createInventoryApi = ({ auth }: InventoryRouterDeps): Hono => {
         updatedAt: summary.updatedAt.toISOString(),
       });
     } catch (error) {
-      console.error("[inventory] failed to load summary", error);
+      logger.error({ err: error }, "[inventory] failed to load summary");
       return c.json({ error: "Failed to load inventory" }, 500);
     }
   });
@@ -84,7 +85,7 @@ export const createInventoryApi = ({ auth }: InventoryRouterDeps): Hono => {
       }
       return c.json({ status: "applied", summary: serializeSummary(result.summary) });
     } catch (error) {
-      console.error("[inventory] failed to adjust stock", error);
+      logger.error({ err: error }, "[inventory] failed to adjust stock");
       return c.json({ error: "Failed to adjust stock" }, 500);
     }
   });
@@ -133,7 +134,7 @@ export const createInventoryApi = ({ auth }: InventoryRouterDeps): Hono => {
       }
       return c.json({ status: "duplicate" });
     } catch (error) {
-      console.error("[inventory] failed to reserve stock", error);
+      logger.error({ err: error }, "[inventory] failed to reserve stock");
       return c.json({ error: "Failed to reserve stock" }, 500);
     }
   });
@@ -161,7 +162,7 @@ export const createInventoryApi = ({ auth }: InventoryRouterDeps): Hono => {
       }
       return c.json({ status: "duplicate" });
     } catch (error) {
-      console.error("[inventory] failed to commit reservation", error);
+      logger.error({ err: error }, "[inventory] failed to commit reservation");
       return c.json({ error: "Failed to commit reservation" }, 500);
     }
   });
@@ -199,7 +200,7 @@ export const createInventoryApi = ({ auth }: InventoryRouterDeps): Hono => {
       }
       return c.json({ status: "duplicate" });
     } catch (error) {
-      console.error("[inventory] failed to release reservation", error);
+      logger.error({ err: error }, "[inventory] failed to release reservation");
       return c.json({ error: "Failed to release reservation" }, 500);
     }
   });
@@ -296,6 +297,9 @@ type RequestAuthenticatorOptions = {
 const createRequestAuthenticator = (options: VerifyAuthTokenOptions): RequestAuthenticator => {
   return async (request, authOptions = {}) => {
     const token = readBearerToken(request, { optional: authOptions.optional });
+        logger.info('got bearer token as: ')
+        logger.info(JSON.stringify(token));
+
     if (!token) {
       return null;
     }

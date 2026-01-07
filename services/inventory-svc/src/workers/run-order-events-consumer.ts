@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { RabbitMqClient } from "@ecommerce/message-broker";
 import { OrderEventsConsumer } from "./order-events-consumer.js";
+import logger from "../logger.js";
 
 const WORKER_NAME = "[inventory-order-consumer-runner]";
 
@@ -25,7 +26,7 @@ export async function runOrderEventsConsumer(): Promise<void> {
   const consumer = new OrderEventsConsumer(broker, queue);
 
   const shutdown = async () => {
-    console.log(`${WORKER_NAME} shutting down`);
+    logger.info(`${WORKER_NAME} shutting down`);
     await consumer.stop();
     process.exit(0);
   };
@@ -38,7 +39,7 @@ export async function runOrderEventsConsumer(): Promise<void> {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   runOrderEventsConsumer().catch((error) => {
-    console.error(`${WORKER_NAME} failed to start`, error);
+    logger.error({ err: error }, `${WORKER_NAME} failed to start`);
     process.exit(1);
   });
 }

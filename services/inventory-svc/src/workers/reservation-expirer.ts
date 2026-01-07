@@ -1,4 +1,5 @@
 import { expireReservations } from "../inventory/service.js";
+import logger from "../logger.js";
 
 const DEFAULT_BATCH_SIZE = 100;
 const DEFAULT_INTERVAL_MS = 5_000;
@@ -17,7 +18,7 @@ export class ReservationExpirerWorker {
   constructor(private readonly options: ReservationExpirerOptions) {}
 
   async start(): Promise<void> {
-    console.log(
+    logger.info(
       `${WORKER_NAME} starting (batch=${this.options.batchSize}, interval=${this.options.intervalMs}ms)`
     );
 
@@ -28,12 +29,12 @@ export class ReservationExpirerWorker {
           await this.waitForNextRun();
         }
       } catch (error) {
-        console.error(`${WORKER_NAME} failed to release reservations`, error);
+        logger.error({ err: error }, `${WORKER_NAME} failed to release reservations`);
         await this.waitForNextRun();
       }
     }
 
-    console.log(`${WORKER_NAME} stopped`);
+    logger.info(`${WORKER_NAME} stopped`);
   }
 
   async stop(): Promise<void> {
