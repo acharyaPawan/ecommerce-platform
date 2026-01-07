@@ -15,6 +15,6 @@ export const authClient = createAuthClient({
 					type: "string[]" // Based on your extractUserRoles function
 				}
 			}
-		})
-	]
+		}),
+	],
 })
