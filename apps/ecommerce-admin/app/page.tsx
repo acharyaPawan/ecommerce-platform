@@ -19,8 +19,10 @@ const statusOptions: Array<{ value: CatalogProductStatus | "all"; label: string 
     { value: "all", label: "All statuses" },
   ]
 
+type PageSearchParams = Record<string, string | string[] | undefined>
+
 type PageProps = {
-  searchParams?: Record<string, string | string[] | undefined>
+  searchParams?: PageSearchParams | Promise<PageSearchParams | undefined>
 }
 
 type StatusFilter = CatalogProductStatus | "all"
@@ -33,12 +35,16 @@ function parseStatus(value?: string): StatusFilter | undefined {
 }
 
 export default async function Page({ searchParams }: PageProps) {
+  const resolvedSearchParams = searchParams
+    ? await searchParams
+    : undefined
+
   const query =
-    typeof searchParams?.q === "string" && searchParams.q.trim().length > 0
-      ? searchParams.q.trim()
+    typeof resolvedSearchParams?.q === "string" && resolvedSearchParams.q.trim().length > 0
+      ? resolvedSearchParams.q.trim()
       : undefined
   const statusParam =
-    typeof searchParams?.status === "string" ? searchParams.status : undefined
+    typeof resolvedSearchParams?.status === "string" ? resolvedSearchParams.status : undefined
   const normalizedStatus = parseStatus(statusParam)
   const displayStatus: StatusFilter = normalizedStatus ?? "published"
   const filtersApplied = Boolean(query) || (!!normalizedStatus && normalizedStatus !== "published")

@@ -89,6 +89,18 @@ const servicesConfig: Record<ServiceName, ServiceConfig> = Object.fromEntries(
   })
 ) as Record<ServiceName, ServiceConfig>
 
+const serviceBasePathOverrides: Partial<Record<ServiceName, string>> = {
+  ordersRead: "/api/orders/read",
+  paymentsRead: "/api/payments/read",
+}
+
+function getServiceBasePath(service: ServiceName) {
+  if (serviceBasePathOverrides[service]) {
+    return serviceBasePathOverrides[service]!
+  }
+  return `/api/${service}`
+}
+
 export function getServiceConfig(service: ServiceName): ServiceConfig {
   return servicesConfig[service]
 }
@@ -128,7 +140,8 @@ export async function serviceFetch<TResponse>({
     throw new Error(`Missing configuration for service "${service}".`)
   }
 
-  const url = new URL(path, config.url)
+  const basePath = getServiceBasePath(service)
+  const url = new URL(joinServicePath(basePath, path), config.url)
   if (searchParams) {
     for (const [key, value] of Object.entries(searchParams)) {
       if (value === undefined || value === null) continue
@@ -219,4 +232,14 @@ async function tryParseServiceError(response: Response) {
   }
 
   return `Service ${response.status} error`
+}
+
+function joinServicePath(basePath: string, resourcePath: string) {
+  const normalizedBase = basePath.endsWith("/")
+    ? basePath.slice(0, -1)
+    : basePath
+  const normalizedResource = resourcePath.startsWith("/")
+    ? resourcePath
+    : `/${resourcePath}`
+  return `${normalizedBase}${normalizedResource}`
 }
