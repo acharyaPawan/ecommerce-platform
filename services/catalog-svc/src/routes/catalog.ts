@@ -69,7 +69,9 @@ export const createCatalogApi = ({ auth }: CatalogRouterDeps): Hono => {
   });
 
   router.post("/products", async (c) => {
+    console.log('headers is', JSON.stringify(c.req.raw));
     const authResponse = await requireAdmin(c, authenticateRequest);
+    console.log("Got authResponse as: ", authResponse);
     if (authResponse) {
       return authResponse;
     }
@@ -155,12 +157,18 @@ const createRequestAuthenticator = (options: VerifyAuthTokenOptions): RequestAut
   return async (request, authOptions = {}) => {
     const token = readBearerToken(request, { optional: authOptions.optional });
     if (!token) {
+      console.log("No token got so return null");
       return null;
     }
 
+    console.log("got token: ", token);
+
     try {
-      return await verifyAuthToken(token, options);
+      const payload = await verifyAuthToken(token, options);
+      console.log("Got payload as: ", payload);
+      return payload;
     } catch (error) {
+      console.log("Got error instead: ", error);
       if (error instanceof AuthorizationError) {
         throw error;
       }
