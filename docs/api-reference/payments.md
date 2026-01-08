@@ -1,7 +1,7 @@
 # Payments Service API
 
 ## Overview
-The payments service tracks payment state for orders and emits payment events through an outbox publisher. It exposes internal write endpoints for authorization/failure/capture and a read endpoint used by the gateway.
+The payments service tracks payment state for orders and emits payment events through an outbox publisher. It accepts any authorized request (no external processor) and exposes internal write endpoints for authorization/failure/capture plus a read endpoint used by the gateway.
 
 ## Base URL
 - Internal service URL: `http://payments-svc:3007`
@@ -16,7 +16,7 @@ The payments service tracks payment state for orders and emits payment events th
 
 ## Authentication
 - All endpoints require a valid JWT.
-- Mutating endpoints require the `admin` role.
+- Mutating endpoints do not enforce role checks in this service; access is expected to be controlled by the gateway.
 
 ## Endpoints
 

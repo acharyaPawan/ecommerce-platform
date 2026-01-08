@@ -1,6 +1,6 @@
 # Payments Service
 
-The payments service tracks payment state for orders, exposes internal payment write endpoints, and emits payment events through an outbox publisher.
+The payments service tracks payment state for orders, exposes internal payment write endpoints, and emits payment events through an outbox publisher. The service accepts any authorized request without integrating with an external processor.
 
 ## Endpoints
 

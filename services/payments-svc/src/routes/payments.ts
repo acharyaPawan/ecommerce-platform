@@ -3,7 +3,6 @@ import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import {
   AuthorizationError,
-  ensureRoles,
   readBearerToken,
   resolveVerifyAuthTokenOptions,
   verifyAuthToken,
@@ -34,7 +33,6 @@ export const createPaymentsRouter = ({ config }: PaymentsRouterDeps): Hono => {
     if (auth.response) {
       return auth.response;
     }
-    ensureRoles(auth.user, ["admin"]);
 
     const idempotencyKey = c.req.header("idempotency-key")?.trim();
     if (!idempotencyKey) {
@@ -74,7 +72,6 @@ export const createPaymentsRouter = ({ config }: PaymentsRouterDeps): Hono => {
     if (auth.response) {
       return auth.response;
     }
-    ensureRoles(auth.user, ["admin"]);
 
     const paymentId = c.req.param("paymentId")?.trim();
     if (!paymentId) {
@@ -109,7 +106,6 @@ export const createPaymentsRouter = ({ config }: PaymentsRouterDeps): Hono => {
     if (auth.response) {
       return auth.response;
     }
-    ensureRoles(auth.user, ["admin"]);
 
     const paymentId = c.req.param("paymentId")?.trim();
     if (!paymentId) {
