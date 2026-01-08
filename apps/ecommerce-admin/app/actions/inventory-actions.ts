@@ -230,10 +230,18 @@ export async function seedInventoryFromCatalogAction(
       return errorResponse("Quantity must be greater than zero.")
     }
 
-    const { items: products } = await listCatalogProducts({
-      status: status ?? "all",
-      limit: count,
-    })
+    let products
+    try {
+      const response = await listCatalogProducts({
+        status: status ?? "all",
+        limit: count,
+      })
+      products = response.items
+    } catch (error) {
+      return errorResponse(
+        error instanceof Error ? error.message : "Failed to load catalog products."
+      )
+    }
 
     let processed = 0
     let skipped = 0

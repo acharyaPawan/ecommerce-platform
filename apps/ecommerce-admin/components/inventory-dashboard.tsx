@@ -27,7 +27,7 @@ import {
   type InventorySeedActionState,
   type ReservationActionState,
 } from "@/app/actions/inventory-actions"
-import { formatCurrency, formatNumber, formatRelativeTimeFromNow } from "@/lib/format"
+import { formatCurrency, formatNumber } from "@/lib/format"
 import type {
   InventoryDashboardData,
   InventoryListItem,
@@ -208,7 +208,7 @@ function InventoryTable({
           </CardDescription>
         </div>
         <Badge variant="outline">
-          Updated {formatRelativeTimeFromNow(items[0].summary.updatedAt)}
+          Updated {items[0]?.summaryUpdatedLabel ?? "just now"}
         </Badge>
       </CardHeader>
       <CardContent className="overflow-x-auto">
@@ -373,7 +373,7 @@ function SelectedSkuPanel({ item }: { item?: InventoryListItem }) {
           />
           <DetailRow
             label="Last Updated"
-            value={formatRelativeTimeFromNow(item.summary.updatedAt)}
+            value={item.summaryUpdatedLabel}
           />
           <DetailRow
             label="Low-stock threshold"
@@ -394,7 +394,7 @@ function ProductUpdateForm({ item }: { item: InventoryListItem }) {
     item.productDescription ?? ""
   )
   const [status, setStatus] = React.useState(item.productStatus)
-  const [state, formAction] = useFormState(
+  const [state, formAction] = React.useActionState(
     updateCatalogProductAction,
     updateProductInitialState
   )

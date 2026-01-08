@@ -90,6 +90,7 @@ const servicesConfig: Record<ServiceName, ServiceConfig> = Object.fromEntries(
 ) as Record<ServiceName, ServiceConfig>
 
 const serviceBasePathOverrides: Partial<Record<ServiceName, string>> = {
+  inventory: "/api/inventory",
   ordersRead: "/api/orders/read",
   paymentsRead: "/api/payments/read",
 }
