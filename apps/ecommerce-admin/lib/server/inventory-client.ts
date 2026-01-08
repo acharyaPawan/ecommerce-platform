@@ -19,13 +19,14 @@ export async function getInventorySummary(
   sku: string
 ): Promise<InventorySummary | null> {
   if (!sku) return null
-
+console.log("In get InventorySummary.")
   try {
     return await serviceFetch<InventorySummary>({
       service: "inventory",
       path: `/inventory/${encodeURIComponent(sku)}`,
     })
   } catch (error) {
+  console.log("Got error, i.e",error)
     if (error instanceof ServiceRequestError && error.status === 404) {
       return null
     }

@@ -6,6 +6,7 @@ import {
   adjustInventory,
   commitInventoryReservation,
   createInventoryReservation,
+  getInventorySummary,
   releaseInventoryReservation,
 } from "@/lib/server/inventory-client"
 import { listCatalogProducts } from "@/lib/server/catalog-client"
