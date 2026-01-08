@@ -23,7 +23,7 @@ console.log("In get InventorySummary.")
   try {
     return await serviceFetch<InventorySummary>({
       service: "inventory",
-      path: `/inventory/${encodeURIComponent(sku)}`,
+      path: `/${encodeURIComponent(sku)}`,
     })
   } catch (error) {
   console.log("Got error, i.e",error)
@@ -39,7 +39,7 @@ export async function adjustInventory(
 ): Promise<InventoryAdjustmentResponse> {
   return serviceFetch<InventoryAdjustmentResponse>({
     service: "inventory",
-    path: "/inventory/adjustments",
+    path: "/adjustments",
     method: "POST",
     body: JSON.stringify(payload),
   })
@@ -50,7 +50,7 @@ export async function createInventoryReservation(
 ): Promise<InventoryReservationResponse> {
   return serviceFetch<InventoryReservationResponse>({
     service: "inventory",
-    path: "/inventory/reservations",
+    path: "/reservations",
     method: "POST",
     body: JSON.stringify(payload),
   })
@@ -61,7 +61,7 @@ export async function commitInventoryReservation(
 ): Promise<ReservationMutationResponse> {
   return serviceFetch<ReservationMutationResponse>({
     service: "inventory",
-    path: `/inventory/reservations/${encodeURIComponent(orderId)}/commit`,
+    path: `/reservations/${encodeURIComponent(orderId)}/commit`,
     method: "POST",
   })
 }
@@ -72,7 +72,7 @@ export async function releaseInventoryReservation(
 ): Promise<ReservationMutationResponse> {
   return serviceFetch<ReservationMutationResponse>({
     service: "inventory",
-    path: `/inventory/reservations/${encodeURIComponent(orderId)}/release`,
+    path: `/reservations/${encodeURIComponent(orderId)}/release`,
     method: "POST",
     body: reason ? JSON.stringify({ reason }) : undefined,
   })
