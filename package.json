@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "turbo run dev --parallel",
     "dev:services": "turbo run dev:services --parallel",
-    "dev:workers": "turbo run worker:outbox --parallel",
+    "dev:workers": "turbo run worker:outbox --parallel --filter=@ecommerce/iam-svc --filter=@ecommerce/catalog-svc --filter=@ecommerce/inventory-svc --filter=@ecommerce/orders-svc --filter=@ecommerce/payments-svc",
     "dev:inventory-workers": "turbo run worker:orders worker:reservations --parallel --filter=@ecommerce/inventory-svc",
     "build": "turbo run build",
     "build:services": "turbo run build:services",
