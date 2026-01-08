@@ -39,10 +39,13 @@ export const createOrdersRouter = ({ config }: OrdersRouterDeps): Hono => {
       return c.json({ error: "Validation failed", details: parsed.error.flatten() }, 422);
     }
 
+    const correlationId = c.req.header("x-request-id")?.trim();
     try {
       const result = await createOrder(parsed.data.cartSnapshot, {
         idempotencyKey,
         snapshotSecret: config.snapshotSecret,
+        correlationId,
+        reservationTtlSeconds: config.reservationTtlSeconds,
       });
       c.header("x-idempotent-replay", result.idempotent ? "true" : "false");
       return c.json({ orderId: result.orderId }, (result.idempotent ? 200 : 201) as ContentfulStatusCode);
@@ -113,7 +116,8 @@ export const createOrdersRouter = ({ config }: OrdersRouterDeps): Hono => {
       }
     }
 
-    const result = await cancelOrder(orderId, parsed.data.reason);
+    const correlationId = c.req.header("x-request-id")?.trim();
+    const result = await cancelOrder(orderId, parsed.data.reason, { correlationId });
     if (result.status === "not_found") {
       return c.json({ error: "Order not found" }, 404);
     }

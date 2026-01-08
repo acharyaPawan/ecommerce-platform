@@ -1,5 +1,5 @@
 {
-  "name": "@ecommerce/orders-svc",
+  "name": "@ecommerce/payments-svc",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -12,7 +12,7 @@
     "build:services": "pnpm run build",
     "dev:services": "pnpm run dev",
     "db:push": "pnpm exec drizzle-kit push",
-    "worker:outbox": "tsx src/workers/run-orders-outbox-publisher.ts",
+    "worker:outbox": "tsx src/workers/run-payments-outbox-publisher.ts",
     "test": "vitest run"
   },
   "dependencies": {

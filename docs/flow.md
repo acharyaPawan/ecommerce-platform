@@ -63,7 +63,7 @@ This document maps the async messaging flows that exist in the repo today: who e
   - `inventory.stock.reservation_expired.v1` on TTL expiry.
 - Consumer: `OrderEventsConsumer` (`services/inventory-svc/src/workers/order-events-consumer.ts`).
   - Queue: `INVENTORY_ORDER_EVENTS_QUEUE` (default `inventory.order-events`).
-  - Exchange: `ORDER_EVENTS_EXCHANGE` (required env, no default).
+  - Exchange: `ORDER_EVENTS_EXCHANGE` (default `orders.events`).
   - Routing keys: `orders.#` and `payments.#`.
   - Expected inbound event types (`services/inventory-svc/src/inventory/order-events.ts`):
     - `orders.order_placed.v1` -> `reserveStock`.
@@ -74,9 +74,27 @@ This document maps the async messaging flows that exist in the repo today: who e
 
 ### Orders service (`services/orders-svc`)
 
-- No outbox table or publisher worker in the repo.
-- API docs explicitly state cancellation does not publish events (`docs/api-reference/orders.md`).
-- The inventory consumer expects `orders.*` events; those publishers are not present here (likely a future or external component).
+- Outbox table: `orders.orders_outbox_events` (`services/orders-svc/src/db/schema.ts`).
+- Publisher worker: `services/orders-svc/src/workers/run-orders-outbox-publisher.ts`.
+  - Exchange: `ORDER_EVENTS_EXCHANGE` (default `orders.events`).
+  - Queue: `ORDER_EVENTS_QUEUE` (default `orders.events.publisher`).
+  - Routing key: event `type` (e.g., `orders.order_placed.v1`).
+- Event types (`services/orders-svc/src/orders/events.ts`), emitted in `services/orders-svc/src/orders/service.ts`:
+  - `orders.order_placed.v1` on successful order creation.
+  - `orders.order_canceled.v1` on cancellation.
+
+### Payments service (`services/payments-svc`)
+
+- Outbox table: `payments.payments_outbox_events` (`services/payments-svc/src/db/schema.ts`).
+- Publisher worker: `services/payments-svc/src/workers/run-payments-outbox-publisher.ts`.
+  - Exchange: `ORDER_EVENTS_EXCHANGE` (default `orders.events`) so inventory can consume `payments.*` without a second exchange.
+  - Queue: `ORDER_EVENTS_QUEUE` (default `payments.events.publisher`).
+  - Routing key: event `type` (e.g., `payments.payment_authorized.v1`).
+- Event types (`services/payments-svc/src/payments/events.ts`), emitted in `services/payments-svc/src/payments/service.ts`:
+  - `payments.payment_authorized.v1` on authorization.
+  - `payments.payment_failed.v1` on failure.
+  - `payments.payment_captured.v1` on capture.
+  - Inventory uses the first two in the checkout saga.
 
 ### Cart service (`services/cart-svc`)
 
@@ -86,9 +104,9 @@ This document maps the async messaging flows that exist in the repo today: who e
 ## Choreography saga: checkout + inventory (as implemented/expected)
 
 1. Cart checkout sends a signed snapshot to Orders over HTTP (`/api/orders`).
-2. Orders is expected to publish `orders.order_placed.v1` to the order events exchange (publisher not present in repo).
+2. Orders publishes `orders.order_placed.v1` to the order events exchange.
 3. Inventory consumes `orders.order_placed.v1` and reserves stock, emitting `inventory.stock.reserved.v1` or `inventory.stock.reservation_failed.v1`.
-4. Payments is expected to emit `payments.payment_authorized.v1` or `payments.payment_failed.v1` (publisher not present in repo).
+4. Payments publishes `payments.payment_authorized.v1` or `payments.payment_failed.v1` to the same exchange.
 5. Inventory consumes payment events to commit or release reservations and emits `inventory.stock.committed.v1` or `inventory.stock.reservation_released.v1`.
 6. Downstream services (fulfillment, notifications, reporting) would subscribe to inventory events; none exist in this repo yet.
 
@@ -99,11 +117,10 @@ This document maps the async messaging flows that exist in the repo today: who e
 - Outbox tables couple domain transaction boundaries to async messaging; publishing is decoupled via worker polling.
 - Correlation and causation IDs are passed through when events originate from other events, but only some flows (inventory consumer, IAM hooks) populate them today.
 - IAM AsyncAPI references Kafka, while code publishes to RabbitMQ; consumers should rely on the runtime behavior unless the spec is updated.
-- Orders and Payments event publishers are missing from the repo; inventory flow assumes they exist.
+- Orders and Payments share `ORDER_EVENTS_EXCHANGE` so inventory only needs one consumer connection.
 
 ## Gaps to verify or extend
 
 - Catalog emits only `ProductCreatedV1` today; other event types are defined but unused.
 - IAM docs mention an `AccessSynchronized` outbox event, but no such event exists in code.
 - No consumers for catalog or inventory events are present; add them where read models or notifications are needed.
-- `ORDER_EVENTS_EXCHANGE` has no default; deployments must supply it.

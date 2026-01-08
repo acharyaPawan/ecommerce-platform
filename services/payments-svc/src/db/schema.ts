@@ -1,21 +1,21 @@
-import { pgSchema, pgTable, text, timestamp, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgSchema, pgTable, text, timestamp, integer, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 
-export const ordersSchema = pgSchema("orders");
+export const paymentsSchema = pgSchema("payments");
 
-export const orders = ordersSchema.table("orders", {
+export const payments = paymentsSchema.table("payments", {
   id: text("id").primaryKey(),
+  orderId: text("order_id").notNull(),
   status: text("status").notNull(),
+  amountCents: integer("amount_cents").notNull(),
   currency: text("currency").notNull(),
-  userId: text("user_id"),
-  cartSnapshot: jsonb("cart_snapshot").notNull(),
-  totals: jsonb("totals").notNull(),
-  cancellationReason: text("cancellation_reason"),
-  canceledAt: timestamp("canceled_at", { withTimezone: true }),
+  failureReason: text("failure_reason"),
+  failedAt: timestamp("failed_at", { withTimezone: true }),
+  capturedAt: timestamp("captured_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const orderIdempotencyKeys = ordersSchema.table(
+export const paymentIdempotencyKeys = paymentsSchema.table(
   "idempotency_keys",
   {
     id: text("id").primaryKey(),
@@ -27,15 +27,15 @@ export const orderIdempotencyKeys = ordersSchema.table(
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
-    keyOperationIdx: uniqueIndex("orders_idempotency_key_operation_idx").on(table.key, table.operation),
+    keyOperationIdx: uniqueIndex("payments_idempotency_key_operation_idx").on(table.key, table.operation),
   })
 );
 
-export const ordersOutboxEvents = ordersSchema.table("orders_outbox_events", {
+export const paymentsOutboxEvents = paymentsSchema.table("payments_outbox_events", {
   id: text("id").primaryKey(),
   type: text("type").notNull(),
   aggregateId: text("aggregate_id").notNull(),
-  aggregateType: text("aggregate_type").default("order").notNull(),
+  aggregateType: text("aggregate_type").default("payment").notNull(),
   payload: jsonb("payload").notNull(),
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
   correlationId: text("correlation_id"),

@@ -19,7 +19,7 @@ export async function runOrderEventsConsumer(): Promise<void> {
 
   const broker = await RabbitMqClient.connect({
     url: process.env.RABBITMQ_URL,
-    exchange: process.env.ORDER_EVENTS_EXCHANGE,
+    exchange: process.env.ORDER_EVENTS_EXCHANGE ?? "orders.events",
     queue,
     prefetch: resolveNumberFromEnv("ORDER_EVENTS_PREFETCH", 10),
   });
