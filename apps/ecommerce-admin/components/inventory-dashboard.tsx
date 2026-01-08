@@ -22,7 +22,9 @@ import {
   commitReservationAction,
   createReservationAction,
   releaseReservationAction,
+  seedInventoryFromCatalogAction,
   type AdjustmentActionState,
+  type InventorySeedActionState,
   type ReservationActionState,
 } from "@/app/actions/inventory-actions"
 import { formatCurrency, formatNumber, formatRelativeTimeFromNow } from "@/lib/format"
@@ -58,6 +60,7 @@ type InventoryDashboardProps = {
 
 const adjustmentInitialState: AdjustmentActionState = { status: "idle" }
 const reservationInitialState: ReservationActionState = { status: "idle" }
+const seedInventoryInitialState: InventorySeedActionState = { status: "idle" }
 
 export function InventoryDashboard({ data }: InventoryDashboardProps) {
   const [selectedSku, setSelectedSku] = React.useState(
@@ -98,6 +101,7 @@ export function InventoryDashboard({ data }: InventoryDashboardProps) {
           />
           <AdjustmentForm selectedSku={selectedItem?.sku} />
           <ReservationForms selectedSku={selectedItem?.sku} />
+          <InventorySeederCard />
           <CatalogSeederCard />
           <CatalogProductCreator />
         </div>
@@ -844,6 +848,84 @@ function CatalogSeederCard() {
           ) : null}
           <Button type="submit" className="w-full">
             Generate products
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}
+
+function InventorySeederCard() {
+  const [state, formAction] = React.useActionState(
+    seedInventoryFromCatalogAction,
+    seedInventoryInitialState
+  )
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Inventory Seeder</CardTitle>
+        <CardDescription>
+          Push catalog variants into inventory with a default on-hand quantity.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form action={formAction} className="space-y-3">
+          <div className="grid gap-1.5">
+            <Label htmlFor="seed-inventory-count">Max products</Label>
+            <Input
+              id="seed-inventory-count"
+              name="count"
+              type="number"
+              min="1"
+              max="200"
+              defaultValue={50}
+              required
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="seed-inventory-status">Lifecycle status</Label>
+            <select
+              id="seed-inventory-status"
+              name="status"
+              className="bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 h-9 rounded-4xl border px-3 text-sm transition-colors focus-visible:ring-[3px] aria-invalid:ring-[3px] outline-none"
+              defaultValue="published"
+            >
+              <option value="draft">Draft</option>
+              <option value="published">Published</option>
+              <option value="archived">Archived</option>
+              <option value="all">All</option>
+            </select>
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="seed-inventory-quantity">Quantity per SKU</Label>
+            <Input
+              id="seed-inventory-quantity"
+              name="quantity"
+              type="number"
+              min="1"
+              defaultValue={25}
+              required
+            />
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="onlyMissing" defaultChecked />
+            Only seed when on-hand is zero
+          </label>
+          {state.message ? (
+            <p
+              className={cn(
+                "text-sm",
+                state.status === "error"
+                  ? "text-destructive"
+                  : "text-muted-foreground"
+              )}
+            >
+              {state.message}
+            </p>
+          ) : null}
+          <Button type="submit" className="w-full" variant="secondary">
+            Seed Inventory
           </Button>
         </form>
       </CardContent>
