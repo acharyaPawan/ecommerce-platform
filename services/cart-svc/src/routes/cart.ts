@@ -22,7 +22,14 @@ import {
 } from "../cart/errors.js";
 import type { IdempotencyStore, StoredIdempotentResponse } from "../infra/idempotency-store.js";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { createUserResolver, type UserResolver } from "@ecommerce/core";
+import {
+  AuthorizationError,
+  readBearerToken,
+  resolveVerifyAuthTokenOptions,
+  verifyAuthToken,
+  type VerifiedAuthTokenPayload,
+  type VerifyAuthTokenOptions,
+} from "@ecommerce/core";
 
 type CartRouterDeps = {
   cartService: CartService;
@@ -34,10 +41,15 @@ export function createCartRouter({ cartService, idempotencyStore, config }: Cart
   const router = new Hono();
   const addItemSchema = createAddItemSchema(config.maxQtyPerItem);
   const updateItemSchema = createUpdateItemSchema(config.maxQtyPerItem);
-  const resolveUser = createUserResolver(config.auth);
+  const verifyOptions = resolveVerifyAuthTokenOptions(config.auth);
+  const authenticateRequest = createRequestAuthenticator(verifyOptions);
 
   router.get("/", async (c) => {
-    const context = await parseCartContext(c, resolveUser);
+    const contextResult = await resolveCartContext(c, authenticateRequest);
+    if (contextResult.response) {
+      return contextResult.response;
+    }
+    const context = contextResult.context;
     if (!context.cartId && !context.userId) {
       return c.json({ error: "Provide X-Cart-Id or Authorization" }, 400);
     }
@@ -62,7 +74,11 @@ export function createCartRouter({ cartService, idempotencyStore, config }: Cart
       return c.json({ error: "Validation failed", details: parsed.error.flatten() }, 422);
     }
 
-    const context = await parseCartContext(c, resolveUser);
+    const contextResult = await resolveCartContext(c, authenticateRequest);
+    if (contextResult.response) {
+      return contextResult.response;
+    }
+    const context = contextResult.context;
     const idempotencyKey = readIdempotencyKey(c);
     if (!idempotencyKey) {
       return c.json({ error: "Idempotency-Key header is required" }, 400);
@@ -93,7 +109,11 @@ export function createCartRouter({ cartService, idempotencyStore, config }: Cart
       return c.json({ error: "Validation failed", details: parsed.error.flatten() }, 422);
     }
 
-    const context = await parseCartContext(c, resolveUser);
+    const contextResult = await resolveCartContext(c, authenticateRequest);
+    if (contextResult.response) {
+      return contextResult.response;
+    }
+    const context = contextResult.context;
     const idempotencyKey = readIdempotencyKey(c);
     if (!idempotencyKey) {
       return c.json({ error: "Idempotency-Key header is required" }, 400);
@@ -129,7 +149,11 @@ export function createCartRouter({ cartService, idempotencyStore, config }: Cart
       target = parsed.data;
     }
 
-    const context = await parseCartContext(c, resolveUser);
+    const contextResult = await resolveCartContext(c, authenticateRequest);
+    if (contextResult.response) {
+      return contextResult.response;
+    }
+    const context = contextResult.context;
     const idempotencyKey = readIdempotencyKey(c);
     if (!idempotencyKey) {
       return c.json({ error: "Idempotency-Key header is required" }, 400);
@@ -151,7 +175,11 @@ export function createCartRouter({ cartService, idempotencyStore, config }: Cart
   });
 
   router.post("/merge", async (c) => {
-    const context = await parseCartContext(c, resolveUser);
+    const contextResult = await resolveCartContext(c, authenticateRequest);
+    if (contextResult.response) {
+      return contextResult.response;
+    }
+    const context = contextResult.context;
     if (!context.userId) {
       return c.json({ error: "Authorization header is required for merge" }, 400);
     }
@@ -189,7 +217,11 @@ export function createCartRouter({ cartService, idempotencyStore, config }: Cart
       return c.json({ error: "Validation failed", details: parsed.error.flatten() }, 422);
     }
 
-    const context = await parseCartContext(c, resolveUser);
+    const contextResult = await resolveCartContext(c, authenticateRequest);
+    if (contextResult.response) {
+      return contextResult.response;
+    }
+    const context = contextResult.context;
     if (!context.cartId && !context.userId) {
       return c.json({ error: "Provide X-Cart-Id or Authorization" }, 400);
     }
@@ -232,8 +264,39 @@ export function createCartRouter({ cartService, idempotencyStore, config }: Cart
   return router;
 }
 
-async function parseCartContext(c: Context, resolveUser: UserResolver): Promise<CartContext> {
-  const user = await resolveUser(c.req.raw);
+type CartContextResolution =
+  | { context: CartContext; response?: undefined }
+  | { context?: undefined; response: Response };
+
+async function resolveCartContext(
+  c: Context,
+  authenticateRequest: RequestAuthenticator
+): Promise<CartContextResolution> {
+  try {
+    const context = await parseCartContext(c, authenticateRequest);
+    return { context };
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      const status = error.status as ContentfulStatusCode;
+      return {
+        response: c.json(
+          {
+            error: status === 401 ? "unauthorized" : "forbidden",
+            message: error.message,
+          },
+          status
+        ),
+      };
+    }
+    throw error;
+  }
+}
+
+async function parseCartContext(
+  c: Context,
+  authenticateRequest: RequestAuthenticator
+): Promise<CartContext> {
+  const user = await authenticateRequest(c.req.raw, { optional: true });
   const headers = cartContextSchema.safeParse({
     cartId: c.req.header("x-cart-id")?.trim(),
     userId: user?.userId,
@@ -415,3 +478,30 @@ function buildResponseScopes(context: CartContext, cart: Cart): string[] {
   }
   return Array.from(scopes);
 }
+
+type RequestAuthenticator = (
+  request: Request,
+  options?: RequestAuthenticatorOptions
+) => Promise<VerifiedAuthTokenPayload | null>;
+
+type RequestAuthenticatorOptions = {
+  optional?: boolean;
+};
+
+const createRequestAuthenticator = (options: VerifyAuthTokenOptions): RequestAuthenticator => {
+  return async (request, authOptions = {}) => {
+    const token = readBearerToken(request, { optional: authOptions.optional });
+    if (!token) {
+      return null;
+    }
+
+    try {
+      return await verifyAuthToken(token, options);
+    } catch (error) {
+      if (error instanceof AuthorizationError) {
+        throw error;
+      }
+      throw new AuthorizationError("Invalid authentication token", 401);
+    }
+  };
+};

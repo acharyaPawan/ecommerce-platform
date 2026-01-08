@@ -3,10 +3,12 @@ import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import {
   AuthorizationError,
-  ensureAuthenticated,
-  ensureRoles,
-  type UserResolver,
-  type UserRole,
+  readBearerToken,
+  resolveVerifyAuthTokenOptions,
+  verifyAuthToken,
+  type AuthConfig,
+  type VerifiedAuthTokenPayload,
+  type VerifyAuthTokenOptions,
 } from "@ecommerce/core";
 import { z } from "zod";
 import {
@@ -17,16 +19,19 @@ import {
   releaseReservation,
   reserveStock,
 } from "../inventory/service.js";
+import logger from "../logger.js";
 
 type InventoryRouterDeps = {
-  resolveUser: UserResolver;
+  auth: AuthConfig;
 };
 
-export const createInventoryApi = ({ resolveUser }: InventoryRouterDeps): Hono => {
+export const createInventoryApi = ({ auth }: InventoryRouterDeps): Hono => {
   const router = new Hono();
+  const verifyOptions = resolveVerifyAuthTokenOptions(auth);
+  const authenticateRequest = createRequestAuthenticator(verifyOptions);
 
   router.get("/:sku", async (c) => {
-    const authResponse = await enforceAuthorization(c, resolveUser);
+    const authResponse = await enforceAuthorization(c, authenticateRequest);
     if (authResponse) {
       return authResponse;
     }
@@ -50,13 +55,13 @@ export const createInventoryApi = ({ resolveUser }: InventoryRouterDeps): Hono =
         updatedAt: summary.updatedAt.toISOString(),
       });
     } catch (error) {
-      console.error("[inventory] failed to load summary", error);
+      logger.error({ err: error }, "[inventory] failed to load summary");
       return c.json({ error: "Failed to load inventory" }, 500);
     }
   });
 
   router.post("/adjustments", async (c) => {
-    const authResponse = await enforceAuthorization(c, resolveUser, ["admin"]);
+    const authResponse = await enforceAuthorization(c, authenticateRequest, { requireAdmin: true });
     if (authResponse) {
       return authResponse;
     }
@@ -80,13 +85,13 @@ export const createInventoryApi = ({ resolveUser }: InventoryRouterDeps): Hono =
       }
       return c.json({ status: "applied", summary: serializeSummary(result.summary) });
     } catch (error) {
-      console.error("[inventory] failed to adjust stock", error);
+      logger.error({ err: error }, "[inventory] failed to adjust stock");
       return c.json({ error: "Failed to adjust stock" }, 500);
     }
   });
 
   router.post("/reservations", async (c) => {
-    const authResponse = await enforceAuthorization(c, resolveUser, ["admin"]);
+    const authResponse = await enforceAuthorization(c, authenticateRequest, { requireAdmin: true });
     if (authResponse) {
       return authResponse;
     }
@@ -129,13 +134,13 @@ export const createInventoryApi = ({ resolveUser }: InventoryRouterDeps): Hono =
       }
       return c.json({ status: "duplicate" });
     } catch (error) {
-      console.error("[inventory] failed to reserve stock", error);
+      logger.error({ err: error }, "[inventory] failed to reserve stock");
       return c.json({ error: "Failed to reserve stock" }, 500);
     }
   });
 
   router.post("/reservations/:orderId/commit", async (c) => {
-    const authResponse = await enforceAuthorization(c, resolveUser, ["admin"]);
+    const authResponse = await enforceAuthorization(c, authenticateRequest, { requireAdmin: true });
     if (authResponse) {
       return authResponse;
     }
@@ -157,13 +162,13 @@ export const createInventoryApi = ({ resolveUser }: InventoryRouterDeps): Hono =
       }
       return c.json({ status: "duplicate" });
     } catch (error) {
-      console.error("[inventory] failed to commit reservation", error);
+      logger.error({ err: error }, "[inventory] failed to commit reservation");
       return c.json({ error: "Failed to commit reservation" }, 500);
     }
   });
 
   router.post("/reservations/:orderId/release", async (c) => {
-    const authResponse = await enforceAuthorization(c, resolveUser, ["admin"]);
+    const authResponse = await enforceAuthorization(c, authenticateRequest, { requireAdmin: true });
     if (authResponse) {
       return authResponse;
     }
@@ -195,7 +200,7 @@ export const createInventoryApi = ({ resolveUser }: InventoryRouterDeps): Hono =
       }
       return c.json({ status: "duplicate" });
     } catch (error) {
-      console.error("[inventory] failed to release reservation", error);
+      logger.error({ err: error }, "[inventory] failed to release reservation");
       return c.json({ error: "Failed to release reservation" }, 500);
     }
   });
@@ -246,15 +251,16 @@ async function readJson(c: Context, options?: { optional?: boolean }): Promise<J
 
 async function enforceAuthorization(
   c: Context,
-  resolveUser: UserResolver,
-  roles?: UserRole[]
+  authenticateRequest: RequestAuthenticator,
+  options?: { requireAdmin?: boolean }
 ): Promise<Response | null> {
   try {
-    const user = await resolveUser(c.req.raw);
-    if (roles?.length) {
-      ensureRoles(user, roles);
-    } else {
-      ensureAuthenticated(user);
+    const user = await authenticateRequest(c.req.raw);
+    if (!user) {
+      throw new AuthorizationError("Authentication required", 401);
+    }
+    if (options?.requireAdmin && !user.roles.includes("admin")) {
+      throw new AuthorizationError("Admin role required", 403);
     }
     return null;
   } catch (error) {
@@ -278,3 +284,33 @@ const serializeSummary = (summary: InventorySummary) => ({
   available: summary.available,
   updatedAt: summary.updatedAt.toISOString(),
 });
+
+type RequestAuthenticator = (
+  request: Request,
+  options?: RequestAuthenticatorOptions
+) => Promise<VerifiedAuthTokenPayload | null>;
+
+type RequestAuthenticatorOptions = {
+  optional?: boolean;
+};
+
+const createRequestAuthenticator = (options: VerifyAuthTokenOptions): RequestAuthenticator => {
+  return async (request, authOptions = {}) => {
+    const token = readBearerToken(request, { optional: authOptions.optional });
+        logger.info('got bearer token as: ')
+        logger.info(JSON.stringify(token));
+
+    if (!token) {
+      return null;
+    }
+
+    try {
+      return await verifyAuthToken(token, options);
+    } catch (error) {
+      if (error instanceof AuthorizationError) {
+        throw error;
+      }
+      throw new AuthorizationError("Invalid authentication token", 401);
+    }
+  };
+};

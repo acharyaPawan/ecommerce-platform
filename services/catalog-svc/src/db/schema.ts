@@ -114,7 +114,7 @@ export const catalogIdempotencyKeys = catalog.table(
   })
 );
 
-export const catalogOutboxEvents = pgTable("catalog_outbox_events", {
+export const catalogOutboxEvents = catalog.table("catalog_outbox_events", {
   id: text("id").primaryKey(),
   type: text("type").notNull(),
   aggregateId: text("aggregate_id").notNull(),

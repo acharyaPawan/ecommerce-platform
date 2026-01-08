@@ -3,9 +3,9 @@
 import "server-only"
 
 import {
-  GatewayRequestError,
-  gatewayFetch,
-} from "@/lib/server/gateway-client"
+  ServiceRequestError,
+  serviceFetch,
+} from "@/lib/server/service-client"
 import type {
   InventoryAdjustmentPayload,
   InventoryAdjustmentResponse,
@@ -19,13 +19,15 @@ export async function getInventorySummary(
   sku: string
 ): Promise<InventorySummary | null> {
   if (!sku) return null
-
+console.log("In get InventorySummary.")
   try {
-    return await gatewayFetch<InventorySummary>({
-      path: `/inventory/${encodeURIComponent(sku)}`,
+    return await serviceFetch<InventorySummary>({
+      service: "inventory",
+      path: `/${encodeURIComponent(sku)}`,
     })
   } catch (error) {
-    if (error instanceof GatewayRequestError && error.status === 404) {
+  console.log("Got error, i.e",error)
+    if (error instanceof ServiceRequestError && error.status === 404) {
       return null
     }
     throw error
@@ -35,8 +37,9 @@ export async function getInventorySummary(
 export async function adjustInventory(
   payload: InventoryAdjustmentPayload
 ): Promise<InventoryAdjustmentResponse> {
-  return gatewayFetch<InventoryAdjustmentResponse>({
-    path: "/inventory/adjustments",
+  return serviceFetch<InventoryAdjustmentResponse>({
+    service: "inventory",
+    path: "/adjustments",
     method: "POST",
     body: JSON.stringify(payload),
   })
@@ -45,8 +48,9 @@ export async function adjustInventory(
 export async function createInventoryReservation(
   payload: InventoryReservationPayload
 ): Promise<InventoryReservationResponse> {
-  return gatewayFetch<InventoryReservationResponse>({
-    path: "/inventory/reservations",
+  return serviceFetch<InventoryReservationResponse>({
+    service: "inventory",
+    path: "/reservations",
     method: "POST",
     body: JSON.stringify(payload),
   })
@@ -55,8 +59,9 @@ export async function createInventoryReservation(
 export async function commitInventoryReservation(
   orderId: string
 ): Promise<ReservationMutationResponse> {
-  return gatewayFetch<ReservationMutationResponse>({
-    path: `/inventory/reservations/${encodeURIComponent(orderId)}/commit`,
+  return serviceFetch<ReservationMutationResponse>({
+    service: "inventory",
+    path: `/reservations/${encodeURIComponent(orderId)}/commit`,
     method: "POST",
   })
 }
@@ -65,8 +70,9 @@ export async function releaseInventoryReservation(
   orderId: string,
   reason?: string
 ): Promise<ReservationMutationResponse> {
-  return gatewayFetch<ReservationMutationResponse>({
-    path: `/inventory/reservations/${encodeURIComponent(orderId)}/release`,
+  return serviceFetch<ReservationMutationResponse>({
+    service: "inventory",
+    path: `/reservations/${encodeURIComponent(orderId)}/release`,
     method: "POST",
     body: reason ? JSON.stringify({ reason }) : undefined,
   })

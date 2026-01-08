@@ -8,6 +8,7 @@ import { IamEventType, makeIamEnvelope } from '../../src/contracts/iam-events';
 import { mapToOutboxEvent } from '../../src/auth';
 import { applyMigrations, setupDockerTestDb, setupServer } from './test-utils';
 import { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import { logger } from '../../src/logger';
 
 describe("Better-auth hooks works", () => {
     let container: StartedPostgreSqlContainer
@@ -28,7 +29,7 @@ describe("Better-auth hooks works", () => {
         await applyMigrations(db);
         ({ default: app } = await import('../../src/app'));
 
-        server = await setupServer(app, 3001);
+        server = await setupServer(app, 3002);
     }, 60000 )
 
     afterAll(async () => {
@@ -106,8 +107,8 @@ describe("Better-auth hooks works", () => {
             ]
         } as const;
         type resType = FromSchema<typeof resSchema>
-        console.log('Sending request to http://localhost:3001/api/auth/sign-up/email')
-        const res = await fetch('http://localhost:3001/api/auth/sign-up/email', {
+        logger.info('Sending request to http://localhost:3002/api/auth/sign-up/email');
+        const res = await fetch('http://localhost:3002/api/auth/sign-up/email', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -117,8 +118,8 @@ describe("Better-auth hooks works", () => {
         expect(res.status).toBe(200);
         const json: resType = await res.json();
         expect(json.user.name).toBe(body.name);
-        console.log('Returns: ');
-        console.log(JSON.stringify(json, null, 3));
+        logger.info("Returns:");
+        logger.info({ response: json }, "auth response");
 
         const envelope = makeIamEnvelope({
                   type: IamEventType.UserRegisteredV1,
@@ -135,14 +136,13 @@ describe("Better-auth hooks works", () => {
         
 
         //is event stored
-        console.log('Querying to db,to check')
+        logger.info("Querying to db,to check");
         const result = await db.query.iamOutboxEvents.findMany({
             limit: 5,
             orderBy: (iamOutboxEvents, {desc}) => [desc(iamOutboxEvents.createdAt)],
         	// we donot need error, for single test case
-
         })
-        console.log('Got: ', JSON.stringify(result, null, 3));
+        logger.info({ result }, "Got:");
         expect(result[0]).toMatchObject(dbEntry)
     });
 });

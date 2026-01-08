@@ -3,9 +3,9 @@
 import "server-only"
 
 import {
-  GatewayRequestError,
-  gatewayFetch,
-} from "@/lib/server/gateway-client"
+  ServiceRequestError,
+  serviceFetch,
+} from "@/lib/server/service-client"
 import type {
   CatalogListResponse,
   CatalogProduct,
@@ -23,7 +23,8 @@ type ListCatalogParams = {
 export async function listCatalogProducts(
   params: ListCatalogParams = {}
 ): Promise<CatalogListResponse> {
-  return gatewayFetch<CatalogListResponse>({
+  return serviceFetch<CatalogListResponse>({
+    service: "catalog",
     path: "/products",
     searchParams: {
       q: params.q,
@@ -40,12 +41,13 @@ export async function getCatalogProduct(
   if (!productId) return null
 
   try {
-    return await gatewayFetch<CatalogProduct>({
+    return await serviceFetch<CatalogProduct>({
+      service: "catalog",
       path: `/products/${productId}`,
     })
   } catch (error) {
     if (
-      error instanceof GatewayRequestError &&
+      error instanceof ServiceRequestError &&
       error.status === 404
     ) {
       return null
@@ -55,7 +57,8 @@ export async function getCatalogProduct(
 }
 
 export async function createCatalogProduct(payload: CatalogProductInput) {
-  return gatewayFetch<{ productId: string }>({
+  return serviceFetch<{ productId: string }>({
+    service: "catalog",
     path: "/products",
     method: "POST",
     body: JSON.stringify(payload),
@@ -68,7 +71,8 @@ export async function updateCatalogProduct(
   payload: Partial<CatalogProductInput>
 ) {
   if (!productId) throw new Error("Product ID is required.")
-  return gatewayFetch<CatalogProduct>({
+  return serviceFetch<CatalogProduct>({
+    service: "catalog",
     path: `/products/${productId}`,
     method: "PATCH",
     body: JSON.stringify(payload),

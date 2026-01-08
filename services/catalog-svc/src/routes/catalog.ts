@@ -1,17 +1,28 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { AuthorizationError, ensureRoles, type UserResolver } from "@ecommerce/core";
+import {
+  AuthorizationError,
+  readBearerToken,
+  resolveVerifyAuthTokenOptions,
+  verifyAuthToken,
+  type AuthConfig,
+  type VerifiedAuthTokenPayload,
+  type VerifyAuthTokenOptions,
+} from "@ecommerce/core";
 import { z } from "zod";
 import { createProduct } from "../catalog/service.js";
 import { createProductSchema } from "../catalog/schemas.js";
 import { getProduct, listProducts } from "../catalog/queries.js";
 
 type CatalogRouterDeps = {
-  resolveUser: UserResolver;
+  auth: AuthConfig;
 };
 
-export const createCatalogApi = ({ resolveUser }: CatalogRouterDeps): Hono => {
+export const createCatalogApi = ({ auth }: CatalogRouterDeps): Hono => {
   const router = new Hono();
+  const verifyOptions = resolveVerifyAuthTokenOptions(auth);
+  const authenticateRequest = createRequestAuthenticator(verifyOptions);
 
   router.get("/products", async (c) => {
     const parsed = listProductsQuerySchema.safeParse({
@@ -58,20 +69,11 @@ export const createCatalogApi = ({ resolveUser }: CatalogRouterDeps): Hono => {
   });
 
   router.post("/products", async (c) => {
-    try {
-      const user = await resolveUser(c.req.raw);
-      ensureRoles(user, ["admin"]);
-    } catch (error) {
-      if (error instanceof AuthorizationError) {
-        return c.json(
-          {
-            error: error.status === 401 ? "unauthorized" : "forbidden",
-            message: error.message,
-          },
-          error.status as ContentfulStatusCode
-        );
-      }
-      throw error;
+    console.log('headers is', JSON.stringify(c.req.raw));
+    const authResponse = await requireAdmin(c, authenticateRequest);
+    console.log("Got authResponse as: ", authResponse);
+    if (authResponse) {
+      return authResponse;
     }
 
     let body: unknown;
@@ -113,6 +115,66 @@ export const createCatalogApi = ({ resolveUser }: CatalogRouterDeps): Hono => {
   });
 
   return router;
+};
+
+async function requireAdmin(
+  c: Context,
+  authenticateRequest: RequestAuthenticator
+): Promise<Response | null> {
+  try {
+    const user = await authenticateRequest(c.req.raw);
+    if (!user) {
+      throw new AuthorizationError("Authentication required", 401);
+    }
+    if (!user.roles.includes("admin")) {
+      throw new AuthorizationError("Admin role required", 403);
+    }
+    return null;
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return c.json(
+        {
+          error: error.status === 401 ? "unauthorized" : "forbidden",
+          message: error.message,
+        },
+        error.status as ContentfulStatusCode
+      );
+    }
+    throw error;
+  }
+}
+
+type RequestAuthenticator = (
+  request: Request,
+  options?: RequestAuthenticatorOptions
+) => Promise<VerifiedAuthTokenPayload | null>;
+
+type RequestAuthenticatorOptions = {
+  optional?: boolean;
+};
+
+const createRequestAuthenticator = (options: VerifyAuthTokenOptions): RequestAuthenticator => {
+  return async (request, authOptions = {}) => {
+    const token = readBearerToken(request, { optional: authOptions.optional });
+    if (!token) {
+      console.log("No token got so return null");
+      return null;
+    }
+
+    console.log("got token: ", token);
+
+    try {
+      const payload = await verifyAuthToken(token, options);
+      console.log("Got payload as: ", payload);
+      return payload;
+    } catch (error) {
+      console.log("Got error instead: ", error);
+      if (error instanceof AuthorizationError) {
+        throw error;
+      }
+      throw new AuthorizationError("Invalid authentication token", 401);
+    }
+  };
 };
 
 const listProductsQuerySchema = z.object({

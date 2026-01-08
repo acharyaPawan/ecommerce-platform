@@ -3,11 +3,11 @@ import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import {
   AuthorizationError,
-  ensureAuthenticated,
-  ensureRoles,
-  type AuthenticatedUser,
-  type UserResolver,
-  type UserRole,
+  readBearerToken,
+  resolveVerifyAuthTokenOptions,
+  verifyAuthToken,
+  type VerifiedAuthTokenPayload,
+  type VerifyAuthTokenOptions,
 } from "@ecommerce/core";
 import { z } from "zod";
 import type { OrdersServiceConfig } from "../config.js";
@@ -15,12 +15,13 @@ import { cartSnapshotSchema } from "../orders/schemas.js";
 import { cancelOrder, createOrder, getOrderById, type OrderRecord } from "../orders/service.js";
 
 type OrdersRouterDeps = {
-  resolveUser: UserResolver;
   config: OrdersServiceConfig;
 };
 
-export const createOrdersRouter = ({ resolveUser, config }: OrdersRouterDeps): Hono => {
+export const createOrdersRouter = ({ config }: OrdersRouterDeps): Hono => {
   const router = new Hono();
+  const verifyOptions = resolveVerifyAuthTokenOptions(config.auth);
+  const authenticateRequest = createRequestAuthenticator(verifyOptions);
 
   router.post("/", async (c) => {
     const idempotencyKey = c.req.header("idempotency-key")?.trim();
@@ -38,10 +39,13 @@ export const createOrdersRouter = ({ resolveUser, config }: OrdersRouterDeps): H
       return c.json({ error: "Validation failed", details: parsed.error.flatten() }, 422);
     }
 
+    const correlationId = c.req.header("x-request-id")?.trim();
     try {
       const result = await createOrder(parsed.data.cartSnapshot, {
         idempotencyKey,
         snapshotSecret: config.snapshotSecret,
+        correlationId,
+        reservationTtlSeconds: config.reservationTtlSeconds,
       });
       c.header("x-idempotent-replay", result.idempotent ? "true" : "false");
       return c.json({ orderId: result.orderId }, (result.idempotent ? 200 : 201) as ContentfulStatusCode);
@@ -56,7 +60,7 @@ export const createOrdersRouter = ({ resolveUser, config }: OrdersRouterDeps): H
   });
 
   router.get("/:orderId", async (c) => {
-    const auth = await authenticate(c, resolveUser);
+    const auth = await authenticate(c, authenticateRequest);
     if (auth.response) {
       return auth.response;
     }
@@ -80,7 +84,7 @@ export const createOrdersRouter = ({ resolveUser, config }: OrdersRouterDeps): H
   });
 
   router.post("/:orderId/cancel", async (c) => {
-    const auth = await authenticate(c, resolveUser);
+    const auth = await authenticate(c, authenticateRequest);
     if (auth.response) {
       return auth.response;
     }
@@ -112,7 +116,8 @@ export const createOrdersRouter = ({ resolveUser, config }: OrdersRouterDeps): H
       }
     }
 
-    const result = await cancelOrder(orderId, parsed.data.reason);
+    const correlationId = c.req.header("x-request-id")?.trim();
+    const result = await cancelOrder(orderId, parsed.data.reason, { correlationId });
     if (result.status === "not_found") {
       return c.json({ error: "Order not found" }, 404);
     }
@@ -155,21 +160,18 @@ async function readJson(c: Context, options?: { optional?: boolean }): Promise<J
 }
 
 type AuthResult =
-  | { user: AuthenticatedUser; response?: undefined }
+  | { user: VerifiedAuthTokenPayload; response?: undefined }
   | { user: null; response: Response };
 
 async function authenticate(
   c: Context,
-  resolveUser: UserResolver,
-  options?: { roles?: UserRole[] }
+  authenticateRequest: RequestAuthenticator
 ): Promise<AuthResult> {
   try {
-    const resolved = await resolveUser(c.req.raw);
-    if (options?.roles?.length) {
-      ensureRoles(resolved, options.roles);
-      return { user: ensureAuthenticated(resolved) };
+    const user = await authenticateRequest(c.req.raw);
+    if (!user) {
+      throw new AuthorizationError("Authentication required", 401);
     }
-    const user = ensureAuthenticated(resolved);
     return { user };
   } catch (error) {
     if (error instanceof AuthorizationError) {
@@ -200,3 +202,30 @@ const serializeOrder = (record: OrderRecord) => ({
   createdAt: record.createdAt.toISOString(),
   updatedAt: record.updatedAt.toISOString(),
 });
+
+type RequestAuthenticator = (
+  request: Request,
+  options?: RequestAuthenticatorOptions
+) => Promise<VerifiedAuthTokenPayload | null>;
+
+type RequestAuthenticatorOptions = {
+  optional?: boolean;
+};
+
+const createRequestAuthenticator = (options: VerifyAuthTokenOptions): RequestAuthenticator => {
+  return async (request, authOptions = {}) => {
+    const token = readBearerToken(request, { optional: authOptions.optional });
+    if (!token) {
+      return null;
+    }
+
+    try {
+      return await verifyAuthToken(token, options);
+    } catch (error) {
+      if (error instanceof AuthorizationError) {
+        throw error;
+      }
+      throw new AuthorizationError("Invalid authentication token", 401);
+    }
+  };
+};

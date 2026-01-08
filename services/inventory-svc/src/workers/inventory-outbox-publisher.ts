@@ -4,6 +4,7 @@ import { RabbitMqClient } from "@ecommerce/message-broker";
 import { and, asc, eq } from "drizzle-orm";
 import db from "../db/index.js";
 import { inventoryOutboxEvents } from "../db/schema.js";
+import logger from "../logger.js";
 
 type InventoryOutboxRecord = typeof inventoryOutboxEvents.$inferSelect;
 
@@ -27,7 +28,7 @@ export class InventoryOutboxPublisherWorker {
   ) {}
 
   async start(): Promise<void> {
-    console.log(
+    logger.info(
       `${WORKER_NAME} starting (batch=${this.options.batchSize}, poll=${this.options.pollIntervalMs}ms)`
     );
 
@@ -41,7 +42,7 @@ export class InventoryOutboxPublisherWorker {
       }
     }
 
-    console.log(`${WORKER_NAME} stopped`);
+    logger.info(`${WORKER_NAME} stopped`);
   }
 
   async stop(): Promise<void> {
@@ -82,7 +83,7 @@ export class InventoryOutboxPublisherWorker {
         await this.markPublished(record.id);
         published += 1;
       } catch (error) {
-        console.error(`${WORKER_NAME} failed to publish ${record.id}`, error);
+        logger.error({ err: error }, `${WORKER_NAME} failed to publish ${record.id}`);
         await this.markFailed(record.id, error);
       }
     }
@@ -199,7 +200,7 @@ export async function runInventoryOutboxPublisherWorker(): Promise<void> {
   });
 
   const shutdown = async () => {
-    console.log(`${WORKER_NAME} shutting down`);
+    logger.info(`${WORKER_NAME} shutting down`);
     await worker.stop();
     process.exit(0);
   };

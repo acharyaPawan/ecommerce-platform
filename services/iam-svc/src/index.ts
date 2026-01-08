@@ -2,6 +2,7 @@ import { serve } from '@hono/node-server'
 import { auth } from './auth';
 import { Hono } from 'hono';
 import { app } from './app'; 
+import { logger } from './logger';
 
 
 const port = Number(process.env.PORT ?? 3001);
@@ -9,7 +10,7 @@ const server = serve({
   fetch: app.fetch,
   port,
 });
-console.log(`[iam-svc] listening on port ${port}`);
+logger.info(`[iam-svc] listening on port ${port}`);
 
 // graceful shutdown
 process.on('SIGINT', () => {

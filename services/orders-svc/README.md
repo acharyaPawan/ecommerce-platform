@@ -19,10 +19,19 @@ The same routes are also mounted under `/orders/*` for compatibility with the ga
 | `DATABASE_URL` | PostgreSQL connection string (required). |
 | `PORT` | HTTP port (default `3005`). |
 | `CART_SNAPSHOT_SECRET` | Shared HMAC secret used to verify snapshots from the cart service (default `cart-snapshot-secret`). |
+| `ORDER_RESERVATION_TTL_SECONDS` | Optional TTL passed to inventory reservation events. |
+| `ORDER_EVENTS_EXCHANGE` | RabbitMQ exchange for `orders.*` events (default `orders.events`). |
+| `ORDER_EVENTS_QUEUE` | RabbitMQ queue name for the outbox publisher (default `orders.events.publisher`). |
 | `IAM_SERVICE_URL`, `AUTH_JWKS_URL`, `AUTH_JWT_ISSUER`, `AUTH_JWT_AUDIENCE`, `AUTH_DEV_USER_HEADER` | Standard auth settings consumed via `@ecommerce/core`. |
 
 Run the service with:
 
 ```bash
 pnpm --filter @ecommerce/orders-svc dev
+```
+
+Run the outbox publisher worker with:
+
+```bash
+pnpm --filter @ecommerce/orders-svc worker:outbox
 ```

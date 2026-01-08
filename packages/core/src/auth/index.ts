@@ -138,6 +138,80 @@ export const ensureRoles = (
   }
 };
 
+export interface VerifyAuthTokenOptions {
+  jwksUrl: string;
+  issuer: string;
+  audience?: string;
+}
+
+export type VerifiedAuthTokenPayload = {
+  userId: string;
+  email: string;
+  name: string | null;
+  emailVerified: boolean;
+  sessionId: string;
+  roles: UserRole[];
+  token: string;
+};
+
+export const verifyAuthToken = async (
+  token: string,
+  options: VerifyAuthTokenOptions
+): Promise<VerifiedAuthTokenPayload> => {
+  const jwks = createRemoteJWKSet(new URL(options.jwksUrl));
+  const { payload } = await jwtVerify(token, jwks, {
+    issuer: options.issuer,
+    ...(options.audience ? { audience: options.audience } : {}),
+  });
+  return mapPayloadToVerifiedToken(token, payload);
+};
+
+export interface ReadBearerTokenOptions {
+  optional?: boolean;
+}
+
+export const readBearerToken = (
+  request: Request,
+  options: ReadBearerTokenOptions = {}
+): string | null => {
+  const header = request.headers.get("authorization");
+  console.log("authorization header", header);
+  if (!header?.trim()) {
+    if (options.optional) {
+      return null;
+    }
+    throw new AuthorizationError("Authentication required", 401);
+  }
+
+  const normalized = header.trim();
+  if (!normalized.toLowerCase().startsWith("bearer ")) {
+    throw new AuthorizationError("Invalid Authorization header", 401);
+  }
+
+  const token = normalized.slice(7).trim();
+  if (!token.length) {
+    throw new AuthorizationError("Authentication required", 401);
+  }
+  console.log("Bearer token, got as", token)
+  return token;
+};
+
+export const resolveVerifyAuthTokenOptions = (config: AuthConfig): VerifyAuthTokenOptions => {
+  const jwksUrl = config.jwksUrl?.trim();
+  const issuer = config.issuer?.trim();
+  const audience = config.audience?.trim();
+
+  if (!jwksUrl || !issuer) {
+    throw new Error("Auth config missing jwksUrl or issuer for JWT verification");
+  }
+
+  return {
+    jwksUrl,
+    issuer,
+    ...(audience ? { audience } : {}),
+  };
+};
+
 const toUser = (token: string, payload: JWTPayload): AuthenticatedUser | null => {
   const subject = typeof payload.sub === "string" && payload.sub.length > 0 ? payload.sub : undefined;
   const fallbackId =
@@ -162,6 +236,37 @@ const toUser = (token: string, payload: JWTPayload): AuthenticatedUser | null =>
   };
 };
 
+const mapPayloadToVerifiedToken = (
+  token: string,
+  payload: JWTPayload
+): VerifiedAuthTokenPayload => {
+  const userId = resolveStringClaim(payload.userId) ?? resolveStringClaim(payload.sub);
+  if (!userId) {
+    throw new AuthorizationError("JWT payload missing userId/sub claim", 401);
+  }
+  const email = resolveStringClaim(payload.email);
+  if (!email) {
+    throw new AuthorizationError("JWT payload missing email claim", 401);
+  }
+  const sessionId = resolveStringClaim(payload.sessionId);
+  if (!sessionId) {
+    throw new AuthorizationError("JWT payload missing sessionId claim", 401);
+  }
+  const name = resolveOptionalString(payload.name);
+  const roles = parseRoles(payload.roles);
+  const normalizedRoles = roles.length ? roles : (["customer"] satisfies UserRole[]);
+
+  return {
+    userId,
+    email,
+    name,
+    emailVerified: Boolean(payload.emailVerified),
+    sessionId,
+    roles: normalizedRoles,
+    token,
+  };
+};
+
 const stripTrailingSlash = (input: string): string =>
   input.endsWith("/") ? input.slice(0, -1) : input;
 
@@ -180,3 +285,16 @@ const parseRoles = (source: unknown): UserRole[] => {
 };
 
 const isUserRole = (value: string): value is UserRole => value === "customer" || value === "admin";
+
+const resolveStringClaim = (value: unknown): string | undefined => {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : undefined;
+};
+
+const resolveOptionalString = (value: unknown): string | null => {
+  const resolved = resolveStringClaim(value);
+  return resolved ?? null;
+};

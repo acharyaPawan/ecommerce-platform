@@ -8,6 +8,9 @@ import { cn } from "@/lib/utils"
 import { formatRelativeTimeFromNow } from "@/lib/format"
 import { getInventoryDashboardData } from "@/lib/server/dashboard-data"
 import type { CatalogProductStatus } from "@/lib/types/catalog"
+import { authClient } from "@/lib/server/auth-client"
+import { redirect } from "next/navigation"
+import { headers } from "next/headers"
 
 export const dynamic = "force-dynamic"
 
@@ -19,8 +22,10 @@ const statusOptions: Array<{ value: CatalogProductStatus | "all"; label: string 
     { value: "all", label: "All statuses" },
   ]
 
+type PageSearchParams = Record<string, string | string[] | undefined>
+
 type PageProps = {
-  searchParams?: Record<string, string | string[] | undefined>
+  searchParams?: PageSearchParams | Promise<PageSearchParams | undefined>
 }
 
 type StatusFilter = CatalogProductStatus | "all"
@@ -33,12 +38,31 @@ function parseStatus(value?: string): StatusFilter | undefined {
 }
 
 export default async function Page({ searchParams }: PageProps) {
+//here
+const sessioon = await authClient.getSession({
+  'fetchOptions': {
+    headers: await headers()
+  }
+});
+
+  console.log("Session info: ", sessioon);
+  if (!sessioon.data?.session) {
+    // Redirect to sign-in page
+    const redirectUrl = new URL("/auth/sign-in", "http://localhost:3000");
+    redirectUrl.searchParams.set("redirectTo", "/");
+    redirect(redirectUrl.toString())
+  }
+  console.log("In page");
+  const resolvedSearchParams = searchParams
+    ? await searchParams
+    : undefined
+
   const query =
-    typeof searchParams?.q === "string" && searchParams.q.trim().length > 0
-      ? searchParams.q.trim()
+    typeof resolvedSearchParams?.q === "string" && resolvedSearchParams.q.trim().length > 0
+      ? resolvedSearchParams.q.trim()
       : undefined
   const statusParam =
-    typeof searchParams?.status === "string" ? searchParams.status : undefined
+    typeof resolvedSearchParams?.status === "string" ? resolvedSearchParams.status : undefined
   const normalizedStatus = parseStatus(statusParam)
   const displayStatus: StatusFilter = normalizedStatus ?? "published"
   const filtersApplied = Boolean(query) || (!!normalizedStatus && normalizedStatus !== "published")

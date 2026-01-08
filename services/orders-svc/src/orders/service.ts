@@ -2,8 +2,10 @@ import { Buffer } from "node:buffer";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import db from "../db/index.js";
-import { orderIdempotencyKeys, orders } from "../db/schema.js";
+import { orderIdempotencyKeys, orders, ordersOutboxEvents } from "../db/schema.js";
 import type { CartSnapshotPayload } from "./schemas.js";
+import { OrderEventType, makeOrderEnvelope } from "./events.js";
+import { mapOrderEventToOutboxRecord } from "./outbox.js";
 
 const CREATE_ORDER_OPERATION = "orders.create";
 
@@ -26,6 +28,8 @@ export type OrderRecord = {
 export type CreateOrderOptions = {
   idempotencyKey?: string;
   snapshotSecret: string;
+  correlationId?: string;
+  reservationTtlSeconds?: number;
 };
 
 export type CreateOrderResult = {
@@ -68,6 +72,26 @@ export async function createOrder(
       updatedAt: now,
     });
 
+    const placedEvent = makeOrderEnvelope({
+      type: OrderEventType.OrderPlacedV1,
+      aggregateId: orderId,
+      correlationId: options.correlationId,
+      payload: {
+        orderId,
+        items: snapshot.items.map((item) => ({
+          sku: item.sku,
+          qty: item.qty,
+        })),
+        ttlSeconds: options.reservationTtlSeconds,
+      },
+    });
+
+    await tx.insert(ordersOutboxEvents).values({
+      ...mapOrderEventToOutboxRecord(placedEvent),
+      createdAt: now,
+      updatedAt: now,
+    });
+
     if (options.idempotencyKey) {
       await markIdempotencyRecordCompleted(tx, options.idempotencyKey, CREATE_ORDER_OPERATION, {
         orderId,
@@ -93,7 +117,15 @@ type CancelOrderResult =
   | { status: "already_finalized"; order: OrderRecord }
   | { status: "canceled"; order: OrderRecord };
 
-export async function cancelOrder(orderId: string, reason?: string): Promise<CancelOrderResult> {
+type CancelOrderOptions = {
+  correlationId?: string;
+};
+
+export async function cancelOrder(
+  orderId: string,
+  reason?: string,
+  options: CancelOrderOptions = {}
+): Promise<CancelOrderResult> {
   const now = new Date();
   return db.transaction(async (tx) => {
     const [record] = await tx.select().from(orders).where(eq(orders.id, orderId)).limit(1);
@@ -113,6 +145,23 @@ export async function cancelOrder(orderId: string, reason?: string): Promise<Can
         updatedAt: now,
       })
       .where(eq(orders.id, orderId));
+
+    const canceledEvent = makeOrderEnvelope({
+      type: OrderEventType.OrderCanceledV1,
+      aggregateId: orderId,
+      correlationId: options.correlationId,
+      payload: {
+        orderId,
+        reason: reason ?? null,
+        canceledAt: now.toISOString(),
+      },
+    });
+
+    await tx.insert(ordersOutboxEvents).values({
+      ...mapOrderEventToOutboxRecord(canceledEvent),
+      createdAt: now,
+      updatedAt: now,
+    });
 
     const [updated] = await tx.select().from(orders).where(eq(orders.id, orderId)).limit(1);
 

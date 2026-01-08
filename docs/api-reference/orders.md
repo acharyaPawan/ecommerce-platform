@@ -91,6 +91,10 @@ Responses:
 - `409 Conflict` `{ "error": "Order already finalized", "order": { ... } }`
 - `404 Not Found`
 
+## Events
+- `orders.order_placed.v1` after order creation.
+- `orders.order_canceled.v1` after cancellation.
+
 ## Notes
 - The service exposes identical routes under `/orders/*` to match the gateway configuration.
-- Cancellation does not currently publish events; downstream systems should poll or extend the domain model if required.
+- Order creation and cancellation emit outbox events that are published by the orders outbox worker.

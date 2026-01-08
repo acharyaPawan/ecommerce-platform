@@ -6,7 +6,7 @@ import {
   pgSchema,
   jsonb,
 } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import type { UserRole } from "@ecommerce/core";
 
 export const auth = pgSchema("auth");
@@ -18,14 +18,15 @@ export const user = auth.table("user", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").default(false).notNull(),
   image: text("image"),
-  roles: jsonb("roles").$type<UserRole[]>().default(sql`'["customer"]'::jsonb`).notNull(),
-  scopes: jsonb("scopes").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  // roles: text("roles").$type<UserRole[]>().notNull().array().notNull().default(sql`'{}'::text[]`),
+createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
 });
+
+type x = typeof user.$inferSelect
 
 export const session = auth.table("session", {
   id: text("id").primaryKey(),
@@ -74,7 +75,7 @@ export const verification = auth.table("verification", {
     .notNull(),
 });
 
-export const iamOutboxEvents = pgTable("iam_outbox_events", {
+export const iamOutboxEvents = auth.table("iam_outbox_events", {
   id: text("id").primaryKey(),
   type: text("type").notNull(),
   aggregateId: text("aggregate_id").notNull(),
@@ -92,3 +93,32 @@ export const iamOutboxEvents = pgTable("iam_outbox_events", {
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
 });
+
+
+export const jwks = auth.table("jwks", {
+  id: text("id").primaryKey(),
+  publicKey: text("public_key").notNull(),
+  privateKey: text("private_key").notNull(),
+  createdAt: timestamp("created_at").notNull(),
+});
+
+
+
+export const userRelations = relations(user, ({ many }) => ({
+  sessions: many(session),
+  accounts: many(account),
+}));
+
+export const sessionRelations = relations(session, ({ one }) => ({
+  user: one(user, {
+    fields: [session.userId],
+    references: [user.id],
+  }),
+}));
+
+export const accountRelations = relations(account, ({ one }) => ({
+  user: one(user, {
+    fields: [account.userId],
+    references: [user.id],
+  }),
+}));

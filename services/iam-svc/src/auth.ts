@@ -4,7 +4,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { createAuthMiddleware } from "better-auth/api";
 import { customSession, jwt, openAPI } from "better-auth/plugins";
 import type { UserRole } from "@ecommerce/core";
-import db from "./db/index.js";
+import db from "./db/index";
 import { iamOutboxEvents } from "./db/schema.js";
 import {
   AnyIamEvent,
@@ -20,6 +20,7 @@ const SIGN_OUT_PATH = "/sign-out";
 const SIGN_OUT_STATE_KEY = "__iamSignOutState";
 const DEFAULT_ROLE: UserRole = "customer";
 const ROLE_ORDER: readonly UserRole[] = ["admin", "customer"];
+const ADMIN_EMAIL_SET = new Set(parseEnvEmailList(process.env.IAM_ADMIN_EMAILS));
 
 type SignOutState = {
   token: string;
@@ -51,11 +52,24 @@ export const mapToOutboxEvent = (event: AnyIamEvent) => {
 };
 
 export const auth = betterAuth({
+  trustedOrigins: ['*', 'http://localhost:3000'],
   database: drizzleAdapter(db, {
     provider: "pg",
   }),
+  user: {
+    deleteUser: {
+      enabled: true,
+    }
+  },
+  session: {
+    cookieCache: {
+      enabled: true,
+      maxAge: 5 * 60, // 5 minutes
+      // strategy: "jwt" // or "jwe" or "compact"
+    }
+  },
   plugins: [
-    openAPI(),  
+    openAPI(),
     jwt({
       jwks: {
         keyPairConfig: {
@@ -90,6 +104,7 @@ export const auth = betterAuth({
           createdAt: session.createdAt,
           updatedAt: session.updatedAt,
           userId: session.userId,
+          roles
         },
         user: {
           id: sessionUser.id,
@@ -118,6 +133,8 @@ export const auth = betterAuth({
       if (!token) {
         return;
       }
+
+
 
       const existingSession = await db.query.session.findFirst({
         where: (sessions, { eq }) => eq(sessions.token, token),
@@ -291,9 +308,15 @@ async function handleSignedOutEvent(
 }
 
 function extractUserRoles(user: unknown): UserRole[] {
+  const email = getUserEmail(user);
+  if (email && isAdminEmail(email)) {
+    return ["admin"];
+  }
+
   if (!user || typeof user !== "object") {
     return [DEFAULT_ROLE];
   }
+
   const normalized = normalizeRoles((user as { roles?: unknown }).roles);
   if (normalized.length === 0) {
     return [DEFAULT_ROLE];
@@ -301,14 +324,23 @@ function extractUserRoles(user: unknown): UserRole[] {
   return normalized;
 }
 
+function getUserEmail(user: unknown): string | undefined {
+  if (!user || typeof user !== "object") {
+    return undefined;
+  }
+
+  const value = (user as { email?: unknown }).email;
+  return typeof value === "string" ? value : undefined;
+}
+
 function normalizeRoles(value: unknown): UserRole[] {
   const values: string[] = Array.isArray(value)
     ? value.filter((role): role is string => typeof role === "string")
     : typeof value === "string"
       ? value
-          .split(",")
-          .map((role) => role.trim())
-          .filter(Boolean)
+        .split(",")
+        .map((role) => role.trim())
+        .filter(Boolean)
       : [];
 
   const allowed = values.filter(isUserRole);
@@ -331,6 +363,21 @@ function normalizeRoles(value: unknown): UserRole[] {
 
 function isUserRole(value: string): value is UserRole {
   return value === "admin" || value === "customer";
+}
+
+function parseEnvEmailList(value: string | undefined): string[] {
+  if (!value) {
+    return [];
+  }
+
+  return value
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isAdminEmail(email: string): boolean {
+  return ADMIN_EMAIL_SET.has(email.trim().toLowerCase());
 }
 
 function getHeaderValue(headers: Headers | HeadersInit | undefined, name: string): string | undefined {

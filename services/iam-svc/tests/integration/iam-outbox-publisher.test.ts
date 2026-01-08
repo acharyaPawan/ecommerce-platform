@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import { iamOutboxEvents } from "../../src/db/schema";
 import { IamEventType, makeIamEnvelope } from "../../src/contracts/iam-events";
 import { mapToOutboxEvent } from "../../src/auth";
+import { logger } from "../../src/logger";
 import {
   applyMigrations,
   randomQueueName,
@@ -49,7 +50,10 @@ describe("IamOutboxPublisherWorker", () => {
   it(
     "publishes pending events and marks them as published",
     async () => {
-      console.log('random queue is', randomQueueName("iam.events.consumer"));
+      logger.info(
+        { queue: randomQueueName("iam.events.consumer") },
+        "random queue is"
+      );
       const publisherClient = await RabbitMqClient.connect({
         url: rabbitUrl,
         exchange: "iam.events.test",
@@ -57,7 +61,10 @@ describe("IamOutboxPublisherWorker", () => {
         queue: randomQueueName("iam.events.publisher"),
         prefetch: 1,
       });
-      console.log('random queue is', randomQueueName("iam.events.consumer"));
+      logger.info(
+        { queue: randomQueueName("iam.events.consumer") },
+        "random queue is"
+      );
       const consumerClient = await RabbitMqClient.connect({
         url: rabbitUrl,
         exchange: "iam.events.test",
@@ -87,10 +94,16 @@ describe("IamOutboxPublisherWorker", () => {
         },
       });
 
-      console.log('test here db url is', process.env.DATABASE_URL)
+      logger.info(
+        { databaseUrl: process.env.DATABASE_URL },
+        "test here db url is"
+      );
       try {
         const inserted = await db.insert(iamOutboxEvents).values([mapToOutboxEvent(envelope)]).returning();
-        console.log('iam_outbox_publisher_worker_test Inserted event to db', JSON.stringify(inserted, null, 3));
+        logger.info(
+          { inserted },
+          "iam_outbox_publisher_worker_test Inserted event to db"
+        );
       } catch (e) {
         console.error('iam_outbox_publisher_test error while pushing entry')
         throw e

@@ -1,0 +1,171 @@
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import type { Pool } from "pg";
+import type { ServerType } from "@hono/node-server";
+import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
+import { user } from "../../src/db/schema";
+import type { AppType } from "../../src/app";
+import { applyMigrations, setupDockerTestDb, setupServer } from "./test-utils";
+import {
+  setupAuthClientHarness,
+  type AuthClient,
+  type AuthClientHarness,
+} from "./auth-client-helper";
+
+describe("test user cleanup route", () => {
+  const SERVER_PORT = 3211;
+  const BASE_URL = `http://127.0.0.1:${SERVER_PORT}`;
+
+  let app: AppType;
+  let db: typeof import("../../src/db").default;
+  let pool: Pool;
+  let server: ServerType;
+  let pgContainer: StartedPostgreSqlContainer;
+  let authClient: AuthClient;
+  let harness: AuthClientHarness | undefined;
+
+  beforeAll(async () => {
+    const docker = await setupDockerTestDb();
+    pgContainer = docker.container;
+    process.env.DATABASE_URL = docker.connectionString;
+    process.env.BASE_URL = BASE_URL;
+    process.env.BETTER_AUTH_URL = BASE_URL;
+
+    vi.resetModules();
+    const dbModule = await import("../../src/db");
+    db = dbModule.default;
+    pool = dbModule.pool;
+    await applyMigrations(db);
+
+    ({ default: app } = await import("../../src/app"));
+    server = await setupServer(app, SERVER_PORT);
+
+    harness = await setupAuthClientHarness();
+    authClient = harness.authClient;
+  }, 120_000);
+
+  afterAll(async () => {
+    await fetch(`${BASE_URL}/testing/test-users`, { method: "DELETE" }).catch(() => undefined);
+    harness?.restoreFetch();
+    await server?.close();
+    await pool?.end();
+    await pgContainer?.stop();
+  });
+
+  it(
+    "supports auth flows via authClient and cleans up deleted user records",
+    async () => {
+      const unique = createUniqueSuffix();
+      const credentials = {
+        name: `Test Runner ${unique}`,
+        email: `test${unique}@example.org`,
+        password: `runner-${unique}`,
+        callbackURL: "",
+        rememberMe: true,
+      };
+
+      const signUp = await authClient.signUp.email(credentials);
+      expect(signUp.error).toBeNull();
+      expect(signUp.data?.user.email).toBe(credentials.email);
+
+      const tokenResult = await authClient.token();
+      expect(tokenResult.error).toBeNull();
+      expect(typeof tokenResult.data?.token).toBe("string");
+
+      const signOutResult = await authClient.signOut();
+      expect(signOutResult.error).toBeNull();
+
+      const signIn = await authClient.signIn.email({
+        email: credentials.email,
+        password: credentials.password,
+        rememberMe: true,
+      });
+      expect(signIn.error).toBeNull();
+      expect(signIn.data?.user.email).toBe(credentials.email);
+
+      const deleteUser = await authClient.deleteUser();
+      expect(deleteUser.error).toBeNull();
+
+      const stored = await db.query.user.findFirst({
+        where: (users, { eq }) => eq(users.email, credentials.email),
+      });
+      expect(stored).toBeUndefined();
+    },
+    90_000
+  );
+
+  it(
+    "deletes users whose name or email matches the test-user rules",
+    async () => {
+      await cleanupTestUsers(BASE_URL);
+
+      const unique = createUniqueSuffix();
+      const controlUser = await createUser({
+        name: `Real User ${unique}`,
+        email: `real-${unique}@example.com`,
+      });
+
+      const nameOnlyUser = await createUser({
+        name: `TestSubject ${unique}`,
+        email: `subject-${unique}@example.net`,
+      });
+      const emailOnlyUser = await createUser({
+        name: `Helper ${unique}`,
+        email: `test${unique}@example.org`,
+      });
+      const nameAndEmailUser = await createUser({
+        name: `TestCombo ${unique}`,
+        email: `test${unique + 1}@example.org`,
+      });
+
+      const response = await fetch(`${BASE_URL}/testing/test-users`, {
+        method: "DELETE",
+      });
+      expect(response.status).toBe(200);
+      const body: CleanupResponse = await response.json();
+      expect(body.deletedCount).toBe(3);
+      expect(new Set(body.deletedUserIds)).toEqual(
+        new Set([nameOnlyUser, emailOnlyUser, nameAndEmailUser])
+      );
+      expect(body.deletedUserIds).not.toContain(controlUser);
+
+      const remainingUsers = await db.query.user.findMany({
+        columns: { id: true, email: true, name: true },
+      });
+      expect(remainingUsers).toHaveLength(1);
+      expect(remainingUsers[0]?.id).toBe(controlUser);
+    },
+    90_000
+  );
+
+  async function createUser(data: { name: string; email: string }): Promise<string> {
+    const payload = {
+      name: data.name,
+      email: data.email,
+      password: `Pass-${createUniqueSuffix()}`,
+      callbackURL: "",
+      rememberMe: true,
+    };
+    const result = await authClient.signUp.email(payload);
+    if (result.error || !result.data?.user.id) {
+      throw new Error(`Failed to create user: ${result.error?.message ?? "unknown error"}`);
+    }
+    await authClient.signOut().catch(() => undefined);
+    return result.data.user.id;
+  }
+});
+
+type CleanupResponse = {
+  deletedCount: number;
+  deletedUserIds: string[];
+};
+
+function createUniqueSuffix(): number {
+  return Number(String(Date.now()).slice(-6)) + Math.floor(Math.random() * 1000);
+}
+
+async function cleanupTestUsers(baseUrl: string): Promise<void> {
+  const response = await fetch(`${baseUrl}/testing/test-users`, { method: "DELETE" });
+  if (!response.ok) {
+    throw new Error(`Failed to cleanup test users: ${response.status}`);
+  }
+}

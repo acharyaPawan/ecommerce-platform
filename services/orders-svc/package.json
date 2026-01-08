@@ -12,10 +12,13 @@
     "build:services": "pnpm run build",
     "dev:services": "pnpm run dev",
     "db:push": "pnpm exec drizzle-kit push",
+    "worker:outbox": "tsx src/workers/run-orders-outbox-publisher.ts",
     "test": "vitest run"
   },
   "dependencies": {
     "@ecommerce/core": "workspace:*",
+    "@ecommerce/events": "workspace:*",
+    "@ecommerce/message-broker": "workspace:*",
     "@hono/node-server": "^1.19.6",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.44.7",

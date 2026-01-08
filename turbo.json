@@ -41,6 +41,26 @@
       "cache": false,
       "persistent": true
     },
+    "dev:workers": {
+      "cache": false,
+      "persistent": true
+    },
+    "dev:inventory-workers": {
+      "cache": false,
+      "persistent": true
+    },
+    "worker:outbox": {
+      "cache": false,
+      "persistent": true
+    },
+    "worker:orders": {
+      "cache": false,
+      "persistent": true
+    },
+    "worker:reservations": {
+      "cache": false,
+      "persistent": true
+    },
     "clean": {
       "cache": false
     }

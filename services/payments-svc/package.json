@@ -1,0 +1,37 @@
+{
+  "name": "@ecommerce/payments-svc",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "build:services": "pnpm run build",
+    "dev:services": "pnpm run dev",
+    "db:push": "pnpm exec drizzle-kit push",
+    "worker:outbox": "tsx src/workers/run-payments-outbox-publisher.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ecommerce/core": "workspace:*",
+    "@ecommerce/events": "workspace:*",
+    "@ecommerce/message-broker": "workspace:*",
+    "@hono/node-server": "^1.19.6",
+    "dotenv": "^17.2.3",
+    "drizzle-orm": "^0.44.7",
+    "hono": "^4.10.4",
+    "pg": "^8.16.3",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.24",
+    "@types/pg": "^8.15.9",
+    "drizzle-kit": "^0.31.6",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.16"
+  }
+}
