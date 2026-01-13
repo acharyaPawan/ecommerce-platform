@@ -7,7 +7,13 @@ import { loadCartView } from "@/lib/server/cart-view"
 export const dynamic = "force-dynamic"
 
 export default async function CheckoutPage() {
-  const cartView = await loadCartView()
+  let cartView = null
+
+  try {
+    cartView = await loadCartView()
+  } catch {
+    cartView = null
+  }
 
   if (!cartView || cartView.cart.items.length === 0) {
     return (

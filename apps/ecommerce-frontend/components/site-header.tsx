@@ -3,12 +3,13 @@ import { ShoppingBag, User2 } from "lucide-react"
 
 import { buttonVariants } from "@/components/ui/button"
 import { getCartId } from "@/lib/server/cart-session"
+import { loadAuthSession } from "@/lib/server/auth-session"
 import { withServiceAuthFromRequest } from "@/lib/server/service-auth"
 import { getCart } from "@/lib/server/cart-client"
 import { cn } from "@/lib/utils"
 
 async function loadCartCount() {
-  const cartId = getCartId()
+  const cartId = await getCartId()
   if (!cartId) return 0
 
   return withServiceAuthFromRequest(async () => {
@@ -18,7 +19,14 @@ async function loadCartCount() {
 }
 
 export async function SiteHeader() {
-  const cartCount = await loadCartCount()
+  const [cartCount, authSession] = await Promise.all([
+    loadCartCount(),
+    loadAuthSession(),
+  ])
+  const signedIn =
+    Boolean(authSession?.user) || Boolean(authSession?.session?.user)
+  const accountName =
+    authSession?.user?.name ?? authSession?.session?.user?.name ?? "Account"
 
   return (
     <header className="sticky top-0 z-40 border-b border-[color:var(--line)] bg-[color:var(--canvas)]/80 backdrop-blur">
@@ -63,12 +71,15 @@ export async function SiteHeader() {
           <Link
             href="/auth"
             className={cn(
-              buttonVariants({ variant: "primary", size: "sm" }),
+              buttonVariants({
+                variant: signedIn ? "secondary" : "primary",
+                size: "sm",
+              }),
               "hidden md:inline-flex"
             )}
           >
             <User2 className="h-4 w-4" />
-            Sign in
+            {signedIn ? accountName : "Sign in"}
           </Link>
         </div>
       </div>

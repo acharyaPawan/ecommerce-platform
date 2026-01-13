@@ -9,18 +9,23 @@ import { formatCurrency } from "@/lib/format"
 import type { CartViewItem } from "@/lib/server/cart-view"
 
 export function CartItemRow({ item }: { item: CartViewItem }) {
-  const hasPrice = item.priceCents !== null && item.priceCents !== undefined
-  const hasLineTotal =
+  const priceCents =
+    item.priceCents !== null && item.priceCents !== undefined
+      ? item.priceCents
+      : null
+  const lineTotalCents =
     item.lineTotalCents !== null && item.lineTotalCents !== undefined
+      ? item.lineTotalCents
+      : null
 
   const priceLabel =
-    hasPrice && item.currency
-      ? formatCurrency(item.priceCents, item.currency)
+    priceCents !== null && item.currency
+      ? formatCurrency(priceCents, item.currency)
       : "--"
 
   const lineTotalLabel =
-    hasLineTotal && item.currency
-      ? formatCurrency(item.lineTotalCents, item.currency)
+    lineTotalCents !== null && item.currency
+      ? formatCurrency(lineTotalCents, item.currency)
       : "--"
 
   return (

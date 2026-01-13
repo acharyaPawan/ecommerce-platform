@@ -2,27 +2,40 @@ import Link from "next/link"
 
 import { ProductCard } from "@/components/product-card"
 import { loadStorefrontData } from "@/lib/server/storefront-data"
+import type { UrlObject } from "url"
 
 export const dynamic = "force-dynamic"
 
+type PageSearchParams = Record<string, string | string[] | undefined>
+
 type PageProps = {
-  searchParams?: Record<string, string | string[] | undefined>
+  searchParams?: Promise<PageSearchParams>
 }
 
-function buildHref(query?: string, category?: string) {
-  const params = new URLSearchParams()
-  if (query) params.set("q", query)
-  if (category) params.set("category", category)
-  const value = params.toString()
-  return value ? `/?${value}` : "/"
+function buildHref(query?: string, category?: string): UrlObject {
+  const queryParams: Record<string, string> = {}
+  if (query) {
+    queryParams.q = query
+  }
+  if (category) {
+    queryParams.category = category
+  }
+
+  return {
+    pathname: "/",
+    query: Object.keys(queryParams).length ? queryParams : undefined,
+  }
 }
 
 export default async function Page({ searchParams }: PageProps) {
+  const resolvedSearchParams = searchParams ? await searchParams : undefined
   const query =
-    typeof searchParams?.q === "string" ? searchParams.q.trim() : undefined
+    typeof resolvedSearchParams?.q === "string"
+      ? resolvedSearchParams.q.trim()
+      : undefined
   const category =
-    typeof searchParams?.category === "string"
-      ? searchParams.category.trim()
+    typeof resolvedSearchParams?.category === "string"
+      ? resolvedSearchParams.category.trim()
       : undefined
 
   const data = await loadStorefrontData({ query, category })

@@ -24,7 +24,7 @@ const defaultServiceConfig: Record<ServiceName, ServiceConfig> = {
   iam: { url: "http://localhost:3001", timeoutMs: 400 },
   catalog: { url: "http://localhost:3002", timeoutMs: 10_000 },
   inventory: { url: "http://localhost:3003", timeoutMs: 10_000 },
-  cart: { url: "http://localhost:3004", timeoutMs: 5000 },
+  cart: { url: "http://localhost:3004", timeoutMs: 10000 },
   orders: { url: "http://localhost:3005", timeoutMs: 800 },
   ordersRead: { url: "http://localhost:3005", timeoutMs: 600 },
   payments: { url: "http://localhost:3007", timeoutMs: 800 },

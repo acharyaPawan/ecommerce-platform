@@ -11,6 +11,8 @@ import {
   serviceFetch,
   serviceFetchWithResponse,
 } from "@/lib/server/service-client"
+import { headers } from "next/headers"
+import next from "next"
 
 type CartHeaderSnapshot = {
   cartId?: string
@@ -26,14 +28,16 @@ function readCartHeaders(response: Response): CartHeaderSnapshot {
 
 export async function getCart(cartId: string): Promise<CartResponse | null> {
   if (!cartId) return null
+  const nextHeaders = await headers()
+  const newHeader = new Headers(nextHeaders);
+  newHeader.set('x-cart-id', cartId)
 
+  console.log("reaquest headers at this point contains, :", newHeader);
   try {
     return await serviceFetch<CartResponse>({
       service: "cart",
       path: "/",
-      headers: {
-        "x-cart-id": cartId,
-      },
+      headers: newHeader
     })
   } catch (error) {
     if (error instanceof ServiceRequestError && error.status === 404) {

@@ -46,4 +46,5 @@ export function Button({
   )
 }
 
+export type { ButtonProps }
 export { buttonVariants }
