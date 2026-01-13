@@ -1,30 +1,29 @@
-import type { Route } from "next"
-import Link from "next/link"
-
-const footerLinks: { href: Route; label: string }[] = [
-  { href: "/legal/privacy", label: "Privacy" },
-  { href: "/legal/terms", label: "Terms" },
-  { href: "/press", label: "Press" },
-]
-
 export function SiteFooter() {
   return (
-    <footer className="border-t bg-background py-10">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="text-base font-semibold">Forma Supply</p>
-          <p className="text-sm text-muted-foreground">
-            Objects for retail, hospitality, and flexible work.
+    <footer className="border-t border-[color:var(--line)] bg-[color:var(--canvas)]/80">
+      <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-12 md:grid-cols-[1.4fr_1fr_1fr]">
+        <div className="space-y-3">
+          <p className="text-lg font-semibold">Aurora Market</p>
+          <p className="text-sm text-muted">
+            A calm storefront for the ecommerce platform. Curate new arrivals, share
+            the story behind every product, and ship from a single, focused hub.
           </p>
         </div>
-        <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
-          {footerLinks.map((link) => (
-            <Link key={link.href} href={link.href} className="hover:text-foreground">
-              {link.label}
-            </Link>
-          ))}
-          <span className="text-muted-foreground/70">© {new Date().getFullYear()} Forma Supply</span>
+        <div className="space-y-2 text-sm">
+          <p className="font-semibold">Explore</p>
+          <p className="text-muted">Catalog</p>
+          <p className="text-muted">Categories</p>
+          <p className="text-muted">Order tracking</p>
         </div>
+        <div className="space-y-2 text-sm">
+          <p className="font-semibold">Need help?</p>
+          <p className="text-muted">support@auroramarket.dev</p>
+          <p className="text-muted">+1 (555) 245-2222</p>
+          <p className="text-muted">Seattle, WA</p>
+        </div>
+      </div>
+      <div className="border-t border-[color:var(--line)] py-4 text-center text-xs text-muted">
+        Built for the ecommerce platform. All rights reserved.
       </div>
     </footer>
   )

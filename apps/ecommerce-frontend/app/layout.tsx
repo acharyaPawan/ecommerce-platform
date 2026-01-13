@@ -1,27 +1,53 @@
 import type { Metadata } from "next"
-
-import { SiteFooter } from "@/components/site-footer"
-import { SiteHeader } from "@/components/site-header"
-import { NuqsAdapter } from 'nuqs/adapters/next/app'
-
+import { Fraunces, Space_Grotesk } from "next/font/google"
 
 import "./globals.css"
+import { SiteHeader } from "@/components/site-header"
+import { SiteFooter } from "@/components/site-footer"
+
+const displayFont = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-display",
+  weight: ["400", "500", "600", "700"],
+})
+
+const bodyFont = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-body",
+  weight: ["400", "500", "600", "700"],
+})
 
 export const metadata: Metadata = {
-  title: "Forma Supply — Commerce OS for physical retail",
+  title: "Aurora Market",
   description:
-    "A modern storefront that merchandises catalog, collections, and services for the ecommerce platform.",
+    "Shop curated essentials with a calm, craft-driven storefront built on the ecommerce platform.",
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   return (
     <html lang="en">
-      <body className="bg-background text-foreground antialiased">
-        <NuqsAdapter>
-        <SiteHeader />
-        <main className="min-h-screen bg-background">{children}</main>
-        <SiteFooter />
-        </NuqsAdapter>
+      <body
+        className={`${displayFont.variable} ${bodyFont.variable} bg-[color:var(--canvas)] text-[color:var(--ink)]`}
+      >
+        <div className="relative min-h-screen overflow-hidden">
+          <div
+            className="pointer-events-none absolute -top-32 left-1/2 h-[420px] w-[760px] -translate-x-1/2 rounded-[100%] bg-[radial-gradient(circle_at_center,var(--glow)_0%,transparent_65%)] opacity-70 blur-3xl"
+            aria-hidden
+          />
+          <div
+            className="pointer-events-none absolute bottom-0 right-0 h-[320px] w-[320px] translate-x-1/3 translate-y-1/3 rounded-full bg-[radial-gradient(circle_at_center,var(--accent-glow)_0%,transparent_60%)] opacity-70 blur-2xl"
+            aria-hidden
+          />
+          <div className="relative flex min-h-screen flex-col">
+            <SiteHeader />
+            <main className="flex-1">{children}</main>
+            <SiteFooter />
+          </div>
+        </div>
       </body>
     </html>
   )

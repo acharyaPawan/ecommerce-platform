@@ -1,50 +1,91 @@
-import type { Route } from "next"
 import Link from "next/link"
+import { ShoppingBag, User2 } from "lucide-react"
 
 import { buttonVariants } from "@/components/ui/button"
+import { getSession } from "@/lib/server/session"
+import { getCartId } from "@/lib/server/cart-session"
+import { withServiceAuthFromRequest } from "@/lib/server/service-auth"
+import { getCart } from "@/lib/server/cart-client"
 import { cn } from "@/lib/utils"
 
-type NavLink = {
-  href: { pathname: Route; hash?: string }
-  label: string
+async function loadCartCount() {
+  const cartId = getCartId()
+  if (!cartId) return 0
+
+  return withServiceAuthFromRequest(async () => {
+    const cart = await getCart(cartId)
+    return cart?.totals.totalQuantity ?? 0
+  })
 }
 
-const navLinks: NavLink[] = [
-  { href: { pathname: "/", hash: "collections" }, label: "Collections" },
-  { href: { pathname: "/", hash: "catalog" }, label: "Catalog" },
-  { href: { pathname: "/", hash: "stories" }, label: "Field Notes" },
-  { href: { pathname: "/", hash: "waitlist" }, label: "Programs" },
-]
+export async function SiteHeader() {
+  const [session, cartCount] = await Promise.all([
+    getSession(),
+    loadCartCount(),
+  ])
 
-export function SiteHeader() {
+  const userLabel =
+    session.data?.user?.name?.trim() || session.data?.user?.email || null
+
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+    <header className="sticky top-0 z-40 border-b border-[color:var(--line)] bg-[color:var(--canvas)]/80 backdrop-blur">
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4">
-        <Link href="/" className="text-lg font-semibold tracking-tight">
-          Forma Supply
-        </Link>
-
-        <nav className="hidden items-center gap-6 text-sm font-medium text-muted-foreground md:flex">
-          {navLinks.map((link) => (
-            <Link key={link.label} href={link.href} className="hover:text-foreground">
-              {link.label}
+        <div className="flex items-center gap-8">
+          <Link href="/" className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--accent)] text-sm font-semibold text-white">
+              AM
+            </span>
+            <div className="leading-tight">
+              <p className="text-lg font-semibold">Aurora Market</p>
+              <p className="text-xs uppercase tracking-[0.2em] text-muted">
+                Curated goods
+              </p>
+            </div>
+          </Link>
+          <nav className="hidden items-center gap-6 text-sm font-medium text-muted md:flex">
+            <Link href="/" className="transition hover:text-[color:var(--ink)]">
+              Shop
             </Link>
-          ))}
-        </nav>
-
-        <div className="flex items-center gap-2">
+            <Link href="/cart" className="transition hover:text-[color:var(--ink)]">
+              Cart
+            </Link>
+            <Link href="/checkout" className="transition hover:text-[color:var(--ink)]">
+              Checkout
+            </Link>
+          </nav>
+        </div>
+        <div className="flex items-center gap-3">
           <Link
-            href={{ pathname: "/", hash: "stories" }}
-            className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
+            href="/cart"
+            className="relative flex items-center gap-2 rounded-full border border-[color:var(--line)] bg-white/80 px-4 py-2 text-sm font-medium text-[color:var(--ink)] shadow-sm transition hover:-translate-y-0.5"
           >
-            Journal
+            <ShoppingBag className="h-4 w-4" />
+            <span>Cart</span>
+            {cartCount > 0 && (
+              <span className="ml-1 inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[color:var(--accent)] px-2 text-xs font-semibold text-white">
+                {cartCount}
+              </span>
+            )}
           </Link>
-          <Link
-            href={{ pathname: "/", hash: "waitlist" }}
-            className={cn(buttonVariants({ size: "sm" }))}
-          >
-            Book a fitting
-          </Link>
+          {session.data?.session ? (
+            <Link
+              href="/auth/sign-out"
+              className="hidden items-center gap-2 rounded-full border border-[color:var(--line)] bg-white/80 px-4 py-2 text-sm font-medium text-[color:var(--ink)] shadow-sm transition hover:-translate-y-0.5 md:flex"
+            >
+              <User2 className="h-4 w-4" />
+              <span>{userLabel ?? "Account"}</span>
+            </Link>
+          ) : (
+            <Link
+              href="/auth/sign-in"
+              className={cn(
+                buttonVariants({ variant: "primary", size: "sm" }),
+                "hidden md:inline-flex"
+              )}
+            >
+              Sign in
+            </Link>
+          )}
         </div>
       </div>
     </header>
