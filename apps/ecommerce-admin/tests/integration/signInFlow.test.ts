@@ -1,5 +1,3 @@
-import { env } from '@/env/client';
-import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { describe, it, expect, beforeEach, afterEach, assert, vi, beforeAll } from 'vitest';
 
 
@@ -133,22 +131,9 @@ describe.todo('Authentication Flow - Integration Tests', () => {
 
         it('should invalidate token after logout', async () => {
             await authClient.signOut()
-            const { data, error } = await authClient.token();
+            const { data } = await authClient.getSession();
 
-            const JWKS = createRemoteJWKSet(
-                new URL(`${env.NEXT_PUBLIC_APP_URL}/api/auth/jwks`)
-            )
-            assert.exists(data?.token);
-            const { payload } = await jwtVerify(data?.token, JWKS, {
-                issuer: 'https://your-auth-service.com',
-                audience: 'https://your-auth-service.com',
-            })
-
-            // const protectedResponse = await authClient.verifyToken(authToken);
-            assert.exists(payload)
-            console.log("payload is: ", payload);
-            // expect(protectedResponse.status).toBe(401);
-            // expect(protectedResponse.error?.code).toBe('INVALID_TOKEN');
+            assert.notExists(data?.session?.token);
         });
     });
 });

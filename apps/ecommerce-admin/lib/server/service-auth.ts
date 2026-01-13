@@ -7,12 +7,13 @@ import { withServiceAuthToken } from "@/lib/server/service-auth-context"
 
 export async function getServiceAuthTokenFromRequest(): Promise<string | undefined> {
   const requestHeaders = await headers()
-  const { data } = await authClient.token({
+  const { data } = await authClient.getSession({
     fetchOptions: {
       headers: requestHeaders,
     },
   })
-  return typeof data?.token === "string" && data.token.length > 0 ? data.token : undefined
+  const token = data?.session?.token
+  return typeof token === "string" && token.length > 0 ? token : undefined
 }
 
 export async function withServiceAuthFromRequest<T>(
