@@ -81,8 +81,32 @@ function buildCartView(cart: CartResponse, products: CatalogProduct[]): CartView
   }
 }
 
+function buildFallbackCartView(cart: CartResponse): CartView {
+  const items = cart.items.map((item) => {
+    return {
+      sku: item.sku,
+      qty: item.qty,
+      title: item.sku,
+      productId: undefined,
+      variantId: item.variantId ?? null,
+      imageUrl: null,
+      priceCents: null,
+      currency: cart.currency,
+      lineTotalCents: null,
+      attributes: item.selectedOptions,
+    }
+  })
+
+  return {
+    cart,
+    items,
+    subtotalCents: cart.pricingSnapshot?.subtotalCents ?? 0,
+    currency: cart.currency,
+  }
+}
+
 export async function loadCartView(): Promise<CartView | null> {
-  const cartId = getCartId()
+  const cartId = await getCartId()
   if (!cartId) return null
 
   return withServiceAuthFromRequest(async () => {
@@ -97,11 +121,15 @@ export async function loadCartView(): Promise<CartView | null> {
       }
     }
 
-    const { items: products } = await listCatalogProducts({
-      status: "published",
-      limit: 200,
-    })
+    try {
+      const { items: products } = await listCatalogProducts({
+        status: "published",
+        limit: 200,
+      })
 
-    return buildCartView(cart, products)
+      return buildCartView(cart, products)
+    } catch {
+      return buildFallbackCartView(cart)
+    }
   })
 }
