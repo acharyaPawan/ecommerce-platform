@@ -44,21 +44,6 @@ Include these screenshots as reference when updating UI, PRs, or documentation:
 4. Build each app via `pnpm build` from the root (or inside a workspace app) so you know the compile step is clean.
 5. Launch `pnpm dev` in `apps/ecommerce-frontend` and `apps/ecommerce-admin` as needed.
 
-## Gallery (Active Progress)
-Include these screenshots as reference when updating UI, PRs, or documentation:
-
-| Description | Preview |
-| ------------ | ------- |
-| `frontend-home-view.png` | ![frontend-home-view](screenshots/frontend-home-view.png) |
-| `cart-section-view.png` | ![cart-section-view](screenshots/cart-section-view.png) |
-| `add-to-cart-without-login-view.png` | ![add-to-cart-without-login-view](screenshots/add-to-cart-without-login-view.png) |
-| `checkout-view.png` | ![checkout-view](screenshots/checkout-view.png) |
-| `after-login-home-view.png` | ![after-login-home-view](screenshots/after-login-home-view.png) |
-| `admin-signin.png` | ![admin-signin](screenshots/admin-signin.png) |
-| `admin-dashboard-view.png` | ![admin-dashboard-view](screenshots/admin-dashboard-view.png) |
-| `admin-dashboard-functionality-controls-view.png` | ![admin-dashboard-functionality-controls-view](screenshots/admin-dashboard-functionality-controls-view.png) |
-| `admin-dashboard-functionality-2-view.png` | ![admin-dashboard-functionality-2-view](screenshots/admin-dashboard-functionality-2-view.png) |
-
 ## Next Steps
 - Keep app/service contracts aligned as new features land.
 - Keep `pnpm install` and `pnpm build` green after dependency changes.
