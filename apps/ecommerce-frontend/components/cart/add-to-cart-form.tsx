@@ -2,10 +2,8 @@
 
 import { useActionState } from "react"
 
-import {
-  addToCartAction,
-  cartActionInitialState,
-} from "@/app/actions/cart-actions"
+import { addToCartAction } from "@/app/actions/cart-actions"
+import { cartActionInitialState } from "@/app/actions/cart-action-state"
 import { SubmitButton } from "@/components/ui/submit-button"
 
 export function AddToCartForm({

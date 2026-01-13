@@ -10,16 +10,10 @@ import {
 } from "@/lib/server/cart-client"
 import { getCartId, setCartId } from "@/lib/server/cart-session"
 import { withServiceAuthFromRequest } from "@/lib/server/service-auth"
-import type { CartSnapshot } from "@/lib/types/cart"
-
-export type CartActionState = {
-  status: "idle" | "success" | "error"
-  message?: string
-}
-
-export const cartActionInitialState: CartActionState = {
-  status: "idle",
-}
+import type {
+  CartActionState,
+  CheckoutActionState,
+} from "@/app/actions/cart-action-state"
 
 export async function addToCartAction(
   _prev: CartActionState,
@@ -39,7 +33,7 @@ export async function addToCartAction(
   }
 
   try {
-    const cartId = getCartId()
+    const cartId = await getCartId()
     const result = await withServiceAuthFromRequest(async () =>
       addCartItem({
         cartId,
@@ -51,7 +45,7 @@ export async function addToCartAction(
     )
 
     if (result.headers.cartId) {
-      setCartId(result.headers.cartId)
+      await setCartId(result.headers.cartId)
     }
 
     revalidatePath("/", "layout")
@@ -73,7 +67,7 @@ export async function updateCartItemAction(formData: FormData) {
   const variantId = formData.get("variantId")?.toString()
 
   if (!sku) return
-  const cartId = getCartId()
+  const cartId = await getCartId()
   if (!cartId) return
 
   const delta = deltaRaw ? Number(deltaRaw) : undefined
@@ -105,7 +99,7 @@ export async function removeCartItemAction(formData: FormData) {
   const variantId = formData.get("variantId")?.toString()
   if (!sku) return
 
-  const cartId = getCartId()
+  const cartId = await getCartId()
   if (!cartId) return
 
   try {
@@ -124,22 +118,11 @@ export async function removeCartItemAction(formData: FormData) {
   }
 }
 
-export type CheckoutActionState = {
-  status: "idle" | "success" | "error"
-  message?: string
-  orderId?: string
-  snapshot?: CartSnapshot
-}
-
-export const checkoutActionInitialState: CheckoutActionState = {
-  status: "idle",
-}
-
 export async function checkoutCartAction(
   _prev: CheckoutActionState,
   formData: FormData
 ): Promise<CheckoutActionState> {
-  const cartId = getCartId()
+  const cartId = await getCartId()
   if (!cartId) {
     return { status: "error", message: "Cart not found." }
   }

@@ -2,10 +2,8 @@
 
 import { useActionState } from "react"
 
-import {
-  checkoutActionInitialState,
-  checkoutCartAction,
-} from "@/app/actions/cart-actions"
+import { checkoutCartAction } from "@/app/actions/cart-actions"
+import { checkoutActionInitialState } from "@/app/actions/cart-action-state"
 import { SubmitButton } from "@/components/ui/submit-button"
 import { formatCurrency } from "@/lib/format"
 
