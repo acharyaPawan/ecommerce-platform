@@ -13,6 +13,7 @@ export function SubmitButton({
   children,
   pendingLabel = "Working...",
   className,
+  type = "submit",
   ...props
 }: SubmitButtonProps) {
   const { pending } = useFormStatus()
@@ -21,6 +22,7 @@ export function SubmitButton({
     <Button
       className={cn(pending && "cursor-wait", className)}
       disabled={pending || props.disabled}
+      type={type}
       {...props}
     >
       {pending ? pendingLabel : children}
