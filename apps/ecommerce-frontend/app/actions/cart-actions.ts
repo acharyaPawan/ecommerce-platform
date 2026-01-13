@@ -44,8 +44,9 @@ export async function addToCartAction(
       })
     )
 
-    if (result.headers.cartId) {
-      await setCartId(result.headers.cartId)
+    const nextCartId = result.headers.cartId ?? result.cart?.id
+    if (nextCartId) {
+      await setCartId(nextCartId)
     }
 
     revalidatePath("/", "layout")
