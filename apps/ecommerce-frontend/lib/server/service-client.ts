@@ -245,8 +245,11 @@ function joinServicePath(basePath: string, resourcePath: string) {
   const normalizedBase = basePath.endsWith("/")
     ? basePath.slice(0, -1)
     : basePath
-  const normalizedResource = resourcePath.startsWith("/")
-    ? resourcePath
-    : `/${resourcePath}`
-  return `${normalizedBase}${normalizedResource}`
+  const normalizedResource =
+    resourcePath === "" || resourcePath === "/"
+      ? ""
+      : resourcePath.startsWith("/")
+      ? resourcePath
+      : `/${resourcePath}`
+  return normalizedResource ? `${normalizedBase}${normalizedResource}` : normalizedBase
 }
