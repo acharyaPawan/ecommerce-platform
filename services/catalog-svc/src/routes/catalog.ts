@@ -13,7 +13,7 @@ import {
 import { z } from "zod";
 import { createProduct } from "../catalog/service.js";
 import { createProductSchema } from "../catalog/schemas.js";
-import { getProduct, listProducts } from "../catalog/queries.js";
+import { getProduct, listProducts, quotePricing } from "../catalog/queries.js";
 
 type CatalogRouterDeps = {
   auth: AuthConfig;
@@ -114,6 +114,36 @@ export const createCatalogApi = ({ auth }: CatalogRouterDeps): Hono => {
     }
   });
 
+  router.post("/pricing/quote", async (c) => {
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON payload" }, 400);
+    }
+
+    const parsed = pricingQuoteSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json({ error: "Validation failed", details: parsed.error.flatten() }, 422);
+    }
+
+    try {
+      const quotes = await quotePricing(
+        parsed.data.items.map((item) => ({
+          sku: item.sku,
+          variantId: item.variantId ?? null,
+        }))
+      );
+      return c.json({ items: quotes });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to quote pricing";
+      const status = message.includes("Variant not found") || message.includes("Missing price")
+        ? 422
+        : 500;
+      return c.json({ error: message }, status as ContentfulStatusCode);
+    }
+  });
+
   return router;
 };
 
@@ -182,4 +212,17 @@ const listProductsQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).default(20),
   cursor: z.string().min(1).optional(),
   q: z.string().trim().min(1).optional(),
+});
+
+const pricingQuoteSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        sku: z.string().trim().min(1),
+        qty: z.coerce.number().int().positive().optional(),
+        variantId: z.string().trim().min(1).optional(),
+        selectedOptions: z.record(z.string(), z.string()).optional(),
+      })
+    )
+    .min(1),
 });

@@ -226,6 +226,7 @@ const toUser = (token: string, payload: JWTPayload): AuthenticatedUser | null =>
   const claims = payload as Record<string, unknown>;
   const roles = parseRoles(claims.roles);
   const normalizedRoles = roles.length ? roles : (["customer"] satisfies UserRole[]);
+  console.log('roles is: ', roles);
 
   return {
     userId,

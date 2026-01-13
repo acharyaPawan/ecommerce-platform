@@ -69,6 +69,8 @@ export function createCartRouter({ cartService, idempotencyStore, config }: Cart
     if (!json.success) {
       return c.json({ error: json.error }, 400);
     }
+    const headers = c.req.raw.headers
+    console.log("headers are as: ", headers);
     const parsed = addItemSchema.safeParse(json.data);
     if (!parsed.success) {
       return c.json({ error: "Validation failed", details: parsed.error.flatten() }, 422);
@@ -277,6 +279,10 @@ async function resolveCartContext(
     return { context };
   } catch (error) {
     if (error instanceof AuthorizationError) {
+      const cartId = c.req.header("x-cart-id")?.trim();
+      if (cartId) {
+        return { context: { cartId } };
+      }
       const status = error.status as ContentfulStatusCode;
       return {
         response: c.json(

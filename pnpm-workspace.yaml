@@ -2,4 +2,4 @@
 packages:
   - "packages/*"
   - "services/*"
-  - "app/*"
+  - "apps/*"

@@ -99,10 +99,15 @@ export class HttpServiceClient implements ServiceClient {
         'downstream.request',
       );
 
+      const responseHeaders: Record<string, string> = {};
+      response.headers.forEach((value, key) => {
+        responseHeaders[key] = value;
+      });
+
       return {
         status: response.status,
         data: data as T,
-        headers: response.headers,
+        headers: responseHeaders,
       };
     } catch (error) {
       if (error instanceof DownstreamError) {
