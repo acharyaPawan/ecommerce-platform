@@ -2,7 +2,6 @@ import Link from "next/link"
 import { ShoppingBag, User2 } from "lucide-react"
 
 import { buttonVariants } from "@/components/ui/button"
-import { getSession } from "@/lib/server/session"
 import { getCartId } from "@/lib/server/cart-session"
 import { withServiceAuthFromRequest } from "@/lib/server/service-auth"
 import { getCart } from "@/lib/server/cart-client"
@@ -19,13 +18,7 @@ async function loadCartCount() {
 }
 
 export async function SiteHeader() {
-  const [session, cartCount] = await Promise.all([
-    getSession(),
-    loadCartCount(),
-  ])
-
-  const userLabel =
-    session.data?.user?.name?.trim() || session.data?.user?.email || null
+  const cartCount = await loadCartCount()
 
   return (
     <header className="sticky top-0 z-40 border-b border-[color:var(--line)] bg-[color:var(--canvas)]/80 backdrop-blur">
@@ -67,25 +60,16 @@ export async function SiteHeader() {
               </span>
             )}
           </Link>
-          {session.data?.session ? (
-            <Link
-              href="/auth/sign-out"
-              className="hidden items-center gap-2 rounded-full border border-[color:var(--line)] bg-white/80 px-4 py-2 text-sm font-medium text-[color:var(--ink)] shadow-sm transition hover:-translate-y-0.5 md:flex"
-            >
-              <User2 className="h-4 w-4" />
-              <span>{userLabel ?? "Account"}</span>
-            </Link>
-          ) : (
-            <Link
-              href="/auth/sign-in"
-              className={cn(
-                buttonVariants({ variant: "primary", size: "sm" }),
-                "hidden md:inline-flex"
-              )}
-            >
-              Sign in
-            </Link>
-          )}
+          <Link
+            href="/auth"
+            className={cn(
+              buttonVariants({ variant: "primary", size: "sm" }),
+              "hidden md:inline-flex"
+            )}
+          >
+            <User2 className="h-4 w-4" />
+            Sign in
+          </Link>
         </div>
       </div>
     </header>

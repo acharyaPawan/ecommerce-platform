@@ -2,7 +2,6 @@ import "server-only"
 
 import crypto from "node:crypto"
 
-import { env } from "@/env/server"
 import { getServiceAuthToken } from "@/lib/server/service-auth-context"
 
 export type ServiceName =
@@ -33,10 +32,7 @@ const defaultServiceConfig: Record<ServiceName, ServiceConfig> = {
   fulfillment: { url: "http://localhost:3009", timeoutMs: 600 },
 }
 
-const serviceEnvKeys: Record<
-  ServiceName,
-  { url: keyof typeof env; timeout: keyof typeof env }
-> = {
+const serviceEnvKeys: Record<ServiceName, { url: string; timeout: string }> = {
   iam: {
     url: "SERVICE_IAM_URL",
     timeout: "SERVICE_IAM_TIMEOUT_MS",
@@ -79,11 +75,11 @@ const servicesConfig: Record<ServiceName, ServiceConfig> = Object.fromEntries(
   (Object.keys(defaultServiceConfig) as ServiceName[]).map((service) => {
     const envKeys = serviceEnvKeys[service]
     const defaults = defaultServiceConfig[service]
-    const url = env[envKeys.url] ?? defaults.url
-    const timeoutFromEnv = env[envKeys.timeout]
+    const url = process.env[envKeys.url] ?? defaults.url
+    const timeoutFromEnv = process.env[envKeys.timeout]
     const timeoutMs =
-      typeof timeoutFromEnv === "number" && timeoutFromEnv > 0
-        ? timeoutFromEnv
+      typeof timeoutFromEnv === "string" && Number(timeoutFromEnv) > 0
+        ? Number(timeoutFromEnv)
         : defaults.timeoutMs
     return [service, { url, timeoutMs }]
   })

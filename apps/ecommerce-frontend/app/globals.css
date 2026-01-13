@@ -1,6 +1,10 @@
 @import "tailwindcss";
 
 :root {
+  --font-display: "Iowan Old Style", "Palatino", "Garamond", "Times New Roman",
+    serif;
+  --font-body: "Avenir Next", "Gill Sans", "Trebuchet MS", "Segoe UI",
+    sans-serif;
   --canvas: #fbf5ec;
   --ink: #201b17;
   --muted: #6a5f56;
