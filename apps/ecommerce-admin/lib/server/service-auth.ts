@@ -2,18 +2,32 @@ import "server-only"
 
 import { headers } from "next/headers"
 
-import { authClient } from "@/lib/server/auth-client"
 import { withServiceAuthToken } from "@/lib/server/service-auth-context"
+import { env } from "@/env/server"
 
 export async function getServiceAuthTokenFromRequest(): Promise<string | undefined> {
-  const requestHeaders = await headers()
-  const { data } = await authClient.getSession({
-    fetchOptions: {
-      headers: requestHeaders,
-    },
-  })
-  const token = data?.session?.token
-  return typeof token === "string" && token.length > 0 ? token : undefined
+  try {
+    const requestHeaders = await headers()
+    const cookie = requestHeaders.get("cookie")
+    if (!cookie) return undefined
+
+    const tokenUrl = new URL("/api/auth/token", env.BETTER_AUTH_URL)
+    const response = await fetch(tokenUrl, {
+      method: "GET",
+      headers: {
+        cookie,
+      },
+      cache: "no-store",
+    })
+
+    if (!response.ok) return undefined
+    const payload = (await response.json()) as { token?: string }
+    return typeof payload.token === "string" && payload.token.length > 0
+      ? payload.token
+      : undefined
+  } catch {
+    return undefined
+  }
 }
 
 export async function withServiceAuthFromRequest<T>(
