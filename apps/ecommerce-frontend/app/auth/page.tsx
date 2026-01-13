@@ -7,15 +7,23 @@ export default function AuthPage() {
         <p className="text-xs uppercase tracking-[0.3em] text-muted">Sign in</p>
         <h1 className="text-3xl font-semibold">Account access</h1>
         <p className="text-sm text-muted">
-          Authentication wiring can be added to match your IAM configuration.
-          For now, continue browsing as a guest.
+          Manage your session so the storefront can call catalog, cart, and orders
+          services with proper authorization.
         </p>
-        <Link
-          href="/"
-          className="accent-gradient inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-semibold text-white"
-        >
-          Return to storefront
-        </Link>
+        <div className="space-x-3">
+          <Link
+            href="/auth/sign-in"
+            className="accent-gradient inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-semibold text-white"
+          >
+            Sign in
+          </Link>
+          <Link
+            href="/"
+            className="inline-flex items-center justify-center rounded-full border border-[color:var(--line)] px-6 py-3 text-sm font-semibold"
+          >
+            Return to storefront
+          </Link>
+        </div>
       </div>
     </div>
   )

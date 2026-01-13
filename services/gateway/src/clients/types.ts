@@ -15,7 +15,7 @@ export interface ServiceRequestOptions {
 export interface ServiceResponse<T> {
   status: number;
   data: T;
-  headers: Headers;
+  headers: Record<string, string>;
 }
 
 export interface ServiceClient {
