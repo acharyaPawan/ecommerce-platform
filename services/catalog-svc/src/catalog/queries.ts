@@ -56,6 +56,19 @@ export type ListProductsResult = {
   nextCursor?: string;
 };
 
+export type PricingQuoteInput = {
+  sku: string;
+  variantId?: string | null;
+};
+
+export type PricingQuote = {
+  sku: string;
+  variantId: string;
+  unitPriceCents: number;
+  currency: string;
+  title: string | null;
+};
+
 export async function listProducts(options: ListProductsOptions = {}): Promise<ListProductsResult> {
   const limit = clamp(options.limit ?? DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE);
   const cursor = parseCursor(options.cursor);
@@ -136,6 +149,95 @@ export async function getProduct(productId: string): Promise<CatalogProduct | nu
 
   const [product] = await hydrateProducts([record]);
   return product ?? null;
+}
+
+export async function quotePricing(items: PricingQuoteInput[]): Promise<PricingQuote[]> {
+  if (items.length === 0) {
+    return [];
+  }
+
+  const variantIds = Array.from(
+    new Set(items.map((item) => item.variantId).filter((value): value is string => Boolean(value)))
+  );
+  const skus = Array.from(
+    new Set(items.filter((item) => !item.variantId).map((item) => item.sku))
+  );
+
+  if (variantIds.length === 0 && skus.length === 0) {
+    return [];
+  }
+
+  const conditions: SQL<unknown>[] = [];
+  if (variantIds.length) {
+    conditions.push(inArray(variants.id, variantIds));
+  }
+  if (skus.length) {
+    conditions.push(inArray(variants.sku, skus));
+  }
+
+  const variantRows = await db
+    .select({
+      id: variants.id,
+      sku: variants.sku,
+      productId: variants.productId,
+      title: products.title,
+    })
+    .from(variants)
+    .leftJoin(products, eq(variants.productId, products.id))
+    .where(conditions.length === 1 ? conditions[0]! : or(...conditions));
+
+  if (variantRows.length === 0) {
+    return [];
+  }
+
+  const variantById = new Map(variantRows.map((row) => [row.id, row]));
+  const variantBySku = new Map(variantRows.map((row) => [row.sku, row]));
+  const variantIdList = variantRows.map((row) => row.id);
+
+  const priceRows = await db
+    .select({
+      variantId: prices.variantId,
+      amountCents: prices.amountCents,
+      currency: prices.currency,
+      effectiveFrom: prices.effectiveFrom,
+      createdAt: prices.createdAt,
+    })
+    .from(prices)
+    .where(inArray(prices.variantId, variantIdList))
+    .orderBy(desc(prices.effectiveFrom), desc(prices.createdAt));
+
+  const priceByVariant = new Map<string, { amountCents: number; currency: string }>();
+  for (const row of priceRows) {
+    if (!priceByVariant.has(row.variantId)) {
+      priceByVariant.set(row.variantId, {
+        amountCents: row.amountCents,
+        currency: row.currency,
+      });
+    }
+  }
+
+  return items.map((item) => {
+    const variant = item.variantId
+      ? variantById.get(item.variantId)
+      : variantBySku.get(item.sku);
+
+    if (!variant) {
+      throw new Error(`Variant not found for SKU ${item.sku}`);
+    }
+
+    const price = priceByVariant.get(variant.id);
+    if (!price) {
+      throw new Error(`Missing price for SKU ${variant.sku}`);
+    }
+
+    return {
+      sku: variant.sku,
+      variantId: variant.id,
+      unitPriceCents: price.amountCents,
+      currency: price.currency,
+      title: variant.title ?? null,
+    };
+  });
 }
 
 async function hydrateProducts(rows: ProductRow[]): Promise<CatalogProduct[]> {
