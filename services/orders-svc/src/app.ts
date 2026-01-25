@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { loadConfig, type OrdersServiceConfig } from "./config.js";
 import { createOrdersRouter } from "./routes/orders.js";
+import logger from "./logger.js";
 
 const config = loadConfig();
 
@@ -19,7 +20,7 @@ function createApp(appConfig: OrdersServiceConfig): Hono {
   app.route("/orders", buildOrdersRouter());
 
   app.onError((err, c) => {
-    console.error("[orders-svc] unhandled error", err);
+    logger.error({ err }, "orders-svc.unhandled_error");
     return c.json({ error: "Internal Server Error" }, 500);
   });
 

@@ -297,8 +297,7 @@ type RequestAuthenticatorOptions = {
 const createRequestAuthenticator = (options: VerifyAuthTokenOptions): RequestAuthenticator => {
   return async (request, authOptions = {}) => {
     const token = readBearerToken(request, { optional: authOptions.optional });
-        logger.info('got bearer token as: ')
-        logger.info(JSON.stringify(token));
+    logger.debug({ hasToken: Boolean(token) }, "inventory.auth.token_received");
 
     if (!token) {
       return null;

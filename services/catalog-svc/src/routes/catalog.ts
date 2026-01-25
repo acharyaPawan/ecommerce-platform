@@ -14,6 +14,7 @@ import { z } from "zod";
 import { createProduct } from "../catalog/service.js";
 import { createProductSchema } from "../catalog/schemas.js";
 import { getProduct, listProducts, quotePricing } from "../catalog/queries.js";
+import logger from "../logger.js";
 
 type CatalogRouterDeps = {
   auth: AuthConfig;
@@ -45,7 +46,7 @@ export const createCatalogApi = ({ auth }: CatalogRouterDeps): Hono => {
       });
       return c.json(result);
     } catch (error) {
-      console.error("[catalog] failed to list products", error);
+      logger.error({ err: error }, "catalog.products.list_failed");
       return c.json({ error: "Failed to list products" }, 500);
     }
   });
@@ -63,15 +64,14 @@ export const createCatalogApi = ({ auth }: CatalogRouterDeps): Hono => {
       }
       return c.json(product);
     } catch (error) {
-      console.error("[catalog] failed to load product", error);
+      logger.error({ err: error, productId }, "catalog.products.load_failed");
       return c.json({ error: "Failed to load product" }, 500);
     }
   });
 
   router.post("/products", async (c) => {
-    console.log('headers is', JSON.stringify(c.req.raw));
     const authResponse = await requireAdmin(c, authenticateRequest);
-    console.log("Got authResponse as: ", authResponse);
+    logger.debug({ isAuthorized: !authResponse }, "catalog.auth.admin_check");
     if (authResponse) {
       return authResponse;
     }
@@ -109,7 +109,7 @@ export const createCatalogApi = ({ auth }: CatalogRouterDeps): Hono => {
         result.idempotent ? 200 : 201
       );
     } catch (error) {
-      console.error("[catalog] failed to create product", error);
+      logger.error({ err: error }, "catalog.products.create_failed");
       return c.json({ error: "Failed to create product" }, 500);
     }
   });
@@ -187,18 +187,21 @@ const createRequestAuthenticator = (options: VerifyAuthTokenOptions): RequestAut
   return async (request, authOptions = {}) => {
     const token = readBearerToken(request, { optional: authOptions.optional });
     if (!token) {
-      console.log("No token got so return null");
+      logger.debug("catalog.auth.token_missing");
       return null;
     }
 
-    console.log("got token: ", token);
+    logger.debug({ hasToken: true }, "catalog.auth.token_received");
 
     try {
       const payload = await verifyAuthToken(token, options);
-      console.log("Got payload as: ", payload);
+      logger.debug(
+        { userId: payload.userId, roles: payload.roles },
+        "catalog.auth.token_verified"
+      );
       return payload;
     } catch (error) {
-      console.log("Got error instead: ", error);
+      logger.warn({ err: error }, "catalog.auth.token_invalid");
       if (error instanceof AuthorizationError) {
         throw error;
       }

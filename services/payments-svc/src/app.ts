@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { loadConfig, type PaymentsServiceConfig } from "./config.js";
 import { createPaymentsRouter } from "./routes/payments.js";
+import logger from "./logger.js";
 
 const config = loadConfig();
 
@@ -19,7 +20,7 @@ function createApp(appConfig: PaymentsServiceConfig): Hono {
   app.route("/payments", buildPaymentsRouter());
 
   app.onError((err, c) => {
-    console.error("[payments-svc] unhandled error", err);
+    logger.error({ err }, "payments-svc.unhandled_error");
     return c.json({ error: "Internal Server Error" }, 500);
   });
 

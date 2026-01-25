@@ -18,6 +18,7 @@ import {
   listPayments,
   type PaymentRecord,
 } from "../payments/service.js";
+import logger from "../logger.js";
 
 type PaymentsRouterDeps = {
   config: PaymentsServiceConfig;
@@ -62,7 +63,7 @@ export const createPaymentsRouter = ({ config }: PaymentsRouterDeps): Hono => {
         (result.idempotent ? 200 : 201) as ContentfulStatusCode
       );
     } catch (error) {
-      console.error("[payments] failed to authorize payment", error);
+      logger.error({ err: error }, "payments.authorize_failed");
       return c.json({ error: "Failed to authorize payment" }, 500);
     }
   });

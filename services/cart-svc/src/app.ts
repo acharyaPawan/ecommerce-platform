@@ -11,6 +11,7 @@ import type { IdempotencyStore } from "./infra/idempotency-store.js";
 import { createCartRouter } from "./routes/cart.js";
 import { HttpCatalogPricingProvider } from "./clients/catalog-pricing.js";
 import { HttpOrdersClient } from "./clients/orders.js";
+import logger from "./logger.js";
 
 export type AppDependencies = {
   config?: ServiceConfig;
@@ -66,7 +67,7 @@ export async function createApp(deps: AppDependencies = {}): Promise<CartApp> {
     .route("/api/cart", createCartRouter({ cartService, idempotencyStore, config }));
 
   app.onError((err, c) => {
-    console.error("[cart-svc] unhandled error", err);
+    logger.error({ err }, "cart-svc.unhandled_error");
     return c.json({ error: "Internal Server Error" }, 500);
   });
 
@@ -76,7 +77,7 @@ export async function createApp(deps: AppDependencies = {}): Promise<CartApp> {
       try {
         await redis.quit();
       } catch (error) {
-        console.warn("[cart-svc] failed to close redis", error);
+        logger.warn({ err: error }, "cart-svc.redis.close_failed");
       }
     }
   });

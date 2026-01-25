@@ -13,6 +13,7 @@ import { z } from "zod";
 import type { OrdersServiceConfig } from "../config.js";
 import { cartSnapshotSchema } from "../orders/schemas.js";
 import { cancelOrder, createOrder, getOrderById, type OrderRecord } from "../orders/service.js";
+import logger from "../logger.js";
 
 type OrdersRouterDeps = {
   config: OrdersServiceConfig;
@@ -51,10 +52,10 @@ export const createOrdersRouter = ({ config }: OrdersRouterDeps): Hono => {
       return c.json({ orderId: result.orderId }, (result.idempotent ? 200 : 201) as ContentfulStatusCode);
     } catch (error) {
       if (error instanceof Error && error.message.includes("snapshot")) {
-        console.warn("[orders] rejected snapshot", { message: error.message });
+        logger.warn({ err: error }, "orders.snapshot.rejected");
         return c.json({ error: "Invalid snapshot payload" }, 422);
       }
-      console.error("[orders] failed to create order", error);
+      logger.error({ err: error }, "orders.create_failed");
       return c.json({ error: "Failed to create order" }, 500);
     }
   });

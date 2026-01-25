@@ -2,6 +2,7 @@ import "dotenv/config";
 import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
 import { loadConfig } from "./config.js";
+import logger from "./logger.js";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -12,10 +13,10 @@ async function main(): Promise<void> {
     port: config.port,
   });
 
-  console.log(`[cart-svc] listening on port ${config.port}`);
+  logger.info({ port: config.port }, "cart-svc.listening");
 
   const shutdown = async () => {
-    console.log("[cart-svc] shutting down");
+    logger.info("cart-svc.shutting_down");
     server.close(async () => {
       await app.dispose();
       process.exit(0);
@@ -27,6 +28,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  console.error("[cart-svc] failed to start", error);
+  logger.error({ err: error }, "cart-svc.start_failed");
   process.exit(1);
 });

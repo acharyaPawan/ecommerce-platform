@@ -1,6 +1,7 @@
 import { runOrdersOutboxPublisherWorker } from "./orders-outbox-publisher.js";
+import logger from "../logger.js";
 
 runOrdersOutboxPublisherWorker().catch((error) => {
-  console.error("[orders-outbox-worker] fatal error", error);
+  logger.error({ err: error }, "[orders-outbox-worker] fatal error");
   process.exit(1);
 });

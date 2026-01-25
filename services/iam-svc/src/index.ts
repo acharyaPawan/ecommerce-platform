@@ -10,7 +10,7 @@ const server = serve({
   fetch: app.fetch,
   port,
 });
-logger.info(`[iam-svc] listening on port ${port}`);
+logger.info({ port }, "iam-svc.listening");
 
 // graceful shutdown
 process.on('SIGINT', () => {
@@ -20,7 +20,7 @@ process.on('SIGINT', () => {
 process.on('SIGTERM', () => {
   server.close((err) => {
     if (err) {
-      console.error(err)
+      logger.error({ err }, "iam-svc.shutdown_failed");
       process.exit(1)
     }
     process.exit(0)

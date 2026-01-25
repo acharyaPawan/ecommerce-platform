@@ -8,7 +8,7 @@ const server = serve({
   fetch: app.fetch,
   port,
 });
-logger.info(`[inventory-svc] listening on port ${port}`);
+logger.info({ port }, "inventory-svc.listening");
 
 const shutdown = (): void => {
   server.close(() => {

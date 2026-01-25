@@ -2,6 +2,7 @@ import "dotenv/config";
 import { serve } from "@hono/node-server";
 import { app } from "./app.js";
 import { loadConfig } from "./config.js";
+import logger from "./logger.js";
 
 const config = loadConfig();
 const server = serve({
@@ -9,7 +10,7 @@ const server = serve({
   port: config.port,
 });
 
-console.log(`[payments-svc] listening on port ${config.port}`);
+logger.info({ port: config.port }, "payments-svc.listening");
 
 const shutdown = (): void => {
   server.close(() => {

@@ -29,7 +29,11 @@ export class IamOutboxPublisherWorker {
 
   async start(): Promise<void> {
     logger.info(
-      `${WORKER_NAME} starting (batchSize=${this.options.batchSize}, pollInterval=${this.options.pollIntervalMs}ms)`
+      {
+        batchSize: this.options.batchSize,
+        pollIntervalMs: this.options.pollIntervalMs,
+      },
+      `${WORKER_NAME} starting`
     );
 
     while (!this.stopped) {
@@ -57,10 +61,6 @@ export class IamOutboxPublisherWorker {
   }
 
   private async publishNextBatch(): Promise<number> {
-    logger.info(
-      { databaseUrl: process.env.DATABASE_URL },
-      "here db is:"
-    );
     const pendingEvents = await db
       .select()
       .from(iamOutboxEvents)
@@ -70,20 +70,17 @@ export class IamOutboxPublisherWorker {
 
 
     if (pendingEvents.length === 0) {
-      logger.info("[iam-outbox-publisher]: No events in db to publish.");
+      logger.info({ count: 0 }, "iam.outbox.empty");
       return 0;
     }
 
-    logger.info(
-      { pendingEvents },
-      "iam_outbox_publisher got"
-    );
+    logger.info({ count: pendingEvents.length }, "iam.outbox.batch_loaded");
 
     let publishedCount = 0;
     for (const record of pendingEvents) {
       const claimed = await this.claim(record.id);
       if (!claimed) {
-        console.error(`[${WORKER_NAME}]: can\'t claim the event ${record.id}`)
+        logger.error({ eventId: record.id }, `${WORKER_NAME} claim_failed`);
         continue;
       }
 
@@ -92,9 +89,9 @@ export class IamOutboxPublisherWorker {
         await this.broker.publish(event);
         await this.markPublished(record.id);
         publishedCount += 1;
-        logger.info("published one");
+        logger.debug({ eventId: record.id }, "iam.outbox.published");
       } catch (error) {
-        console.error(`${WORKER_NAME} failed to publish event ${record.id}`, error);
+        logger.error({ err: error, eventId: record.id }, `${WORKER_NAME} publish_failed`);
         await this.markFailed(record.id, error);
       }
     }

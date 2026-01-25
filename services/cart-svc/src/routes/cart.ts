@@ -30,6 +30,7 @@ import {
   type VerifiedAuthTokenPayload,
   type VerifyAuthTokenOptions,
 } from "@ecommerce/core";
+import logger from "../logger.js";
 
 type CartRouterDeps = {
   cartService: CartService;
@@ -69,8 +70,13 @@ export function createCartRouter({ cartService, idempotencyStore, config }: Cart
     if (!json.success) {
       return c.json({ error: json.error }, 400);
     }
-    const headers = c.req.raw.headers
-    console.log("headers are as: ", headers);
+    logger.debug(
+      {
+        cartId: c.req.header("x-cart-id")?.trim(),
+        hasAuth: Boolean(c.req.header("authorization")),
+      },
+      "cart.request.headers"
+    );
     const parsed = addItemSchema.safeParse(json.data);
     if (!parsed.success) {
       return c.json({ error: "Validation failed", details: parsed.error.flatten() }, 422);
@@ -420,7 +426,7 @@ function mapCartError(c: Context, error: unknown) {
     return c.json({ error: error.message, code: error.code }, 400);
   }
 
-  console.error("[cart-svc] unhandled error", error);
+  logger.error({ err: error }, "cart-svc.unhandled_error");
   return c.json({ error: "Unexpected error" }, 500);
 }
 

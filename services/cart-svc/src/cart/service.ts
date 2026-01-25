@@ -11,6 +11,7 @@ import type {
 import { computeCartTotals } from "./types.js";
 import type { PricingProvider, OrdersClient, PricingQuote } from "./ports.js";
 import type { AddItemPayload, CheckoutPayload, ItemTargetPayload, UpdateItemPayload } from "./validation.js";
+import logger from "../logger.js";
 
 export type CartContext = {
   cartId?: string;
@@ -247,7 +248,7 @@ export class CartService {
         const result = await this.options.ordersClient.placeOrder(snapshot);
         orderId = result.orderId;
       } catch (error) {
-        console.error("[cart-svc] failed to call orders service", error);
+        logger.error({ err: error }, "cart.orders.place_failed");
         throw new CartCheckoutError("Orders service rejected checkout");
       }
     }
@@ -291,7 +292,7 @@ export class CartService {
     try {
       quotes = await this.options.pricingProvider.quote(cart.items);
     } catch (error) {
-      console.error("[cart-svc] pricing provider failed", error);
+      logger.error({ err: error }, "cart.pricing.quote_failed");
       throw new CartCheckoutError("Failed to refresh pricing");
     }
 

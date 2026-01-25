@@ -1,6 +1,7 @@
 import { runPaymentsOutboxPublisherWorker } from "./payments-outbox-publisher.js";
+import logger from "../logger.js";
 
 runPaymentsOutboxPublisherWorker().catch((error) => {
-  console.error("[payments-outbox-worker] fatal error", error);
+  logger.error({ err: error }, "[payments-outbox-worker] fatal error");
   process.exit(1);
 });

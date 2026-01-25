@@ -175,7 +175,6 @@ export const readBearerToken = (
   options: ReadBearerTokenOptions = {}
 ): string | null => {
   const header = request.headers.get("authorization");
-  console.log("authorization header", header);
   if (!header?.trim()) {
     if (options.optional) {
       return null;
@@ -192,7 +191,6 @@ export const readBearerToken = (
   if (!token.length) {
     throw new AuthorizationError("Authentication required", 401);
   }
-  console.log("Bearer token, got as", token)
   return token;
 };
 
@@ -226,7 +224,6 @@ const toUser = (token: string, payload: JWTPayload): AuthenticatedUser | null =>
   const claims = payload as Record<string, unknown>;
   const roles = parseRoles(claims.roles);
   const normalizedRoles = roles.length ? roles : (["customer"] satisfies UserRole[]);
-  console.log('roles is: ', roles);
 
   return {
     userId,

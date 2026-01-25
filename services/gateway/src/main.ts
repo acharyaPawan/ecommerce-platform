@@ -4,6 +4,7 @@ import { loadConfig } from './config.js';
 import { createLogger, type Logger } from './logger.js';
 
 let startupLogger: Logger | undefined;
+const fallbackLogger = createLogger({ name: 'gateway', level: 'info' });
 
 const bootstrap = async () => {
   const config = loadConfig();
@@ -26,10 +27,6 @@ const bootstrap = async () => {
 };
 
 bootstrap().catch((error) => {
-  if (startupLogger) {
-    startupLogger.error({ err: error }, 'gateway.start_failed');
-  } else {
-    console.error(error);
-  }
+  (startupLogger ?? fallbackLogger).error({ err: error }, 'gateway.start_failed');
   process.exit(1);
 });
