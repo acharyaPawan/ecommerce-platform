@@ -23,8 +23,26 @@ const resolvePretty = (pretty?: boolean): boolean => {
   return process.env.NODE_ENV !== "production";
 };
 
-const createTransport = (pretty: boolean) =>
-  pretty
+type TransportOptions = NonNullable<Parameters<typeof pino>[0]["transport"]>;
+
+const resolveOtelEnabled = (): boolean =>
+  Boolean(
+    process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT ??
+      process.env.OTEL_EXPORTER_OTLP_ENDPOINT
+  );
+
+const createTransport = (
+  pretty: boolean,
+  service: string,
+  env: string
+): TransportOptions | undefined => {
+  const otelEnabled = resolveOtelEnabled();
+
+  if (!pretty && !otelEnabled) {
+    return undefined;
+  }
+
+  const consoleTarget = pretty
     ? {
         target: "pino-pretty",
         options: {
@@ -34,16 +52,42 @@ const createTransport = (pretty: boolean) =>
           ignore: "pid,hostname",
         },
       }
-    : undefined;
+    : {
+        target: "pino/file",
+        options: {
+          destination: 1,
+        },
+      };
+
+  if (!otelEnabled) {
+    return consoleTarget;
+  }
+
+  return {
+    targets: [
+      consoleTarget,
+      {
+        target: "pino-opentelemetry-transport",
+        options: {
+          resourceAttributes: {
+            "service.name": service,
+            "deployment.environment": env,
+          },
+        },
+      },
+    ],
+  };
+};
 
 export const createLogger = ({ service, level, base, pretty }: LoggerOptions): Logger => {
-  const transport = createTransport(resolvePretty(pretty));
+  const env = process.env.NODE_ENV ?? "development";
+  const transport = createTransport(resolvePretty(pretty), service, env);
 
   return pino({
     level: level ?? (process.env.LOG_LEVEL as LogLevel | undefined) ?? "info",
     base: {
       service,
-      env: process.env.NODE_ENV ?? "development",
+      env,
       ...(base ?? {}),
     },
     transport,
