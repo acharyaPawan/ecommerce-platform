@@ -5,7 +5,6 @@
     "outDir": "dist",
     "module": "esnext",
     "moduleResolution": "bundler"
-    
   },
   "include": ["src", "drizzle.config.ts"]
 }

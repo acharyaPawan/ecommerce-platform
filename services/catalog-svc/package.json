@@ -7,12 +7,12 @@
   "types": "dist/main.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js",
-    "dev": "tsx watch src/index.ts",
+    "start": "node --import ./dist/instrumentation.js dist/index.js",
+    "dev": "tsx watch --import=./dist/instrumentation.js src/index.ts",
     "build:services": "pnpm run build",
     "dev:services": "pnpm run dev",
     "db:push": "pnpm exec drizzle-kit push",
-    "worker:outbox": "tsx src/workers/run-catalog-outbox-publisher.ts",
+    "worker:outbox": "tsx --import=./dist/instrumentation.js src/workers/run-catalog-outbox-publisher.ts",
     "test": "DEBUG=testcontainers* vitest"
   },
   "dependencies": {
@@ -24,7 +24,9 @@
     "drizzle-orm": "^0.44.7",
     "hono": "^4.10.4",
     "pg": "^8.16.3",
-    "zod": "^4.2.1"
+    "zod": "^4.2.1",
+    "@opentelemetry/sdk-node": "^0.211.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.69.0"
   },
   "devDependencies": {
     "@testcontainers/postgresql": "^11.10.0",

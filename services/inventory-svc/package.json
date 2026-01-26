@@ -7,14 +7,14 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js",
-    "dev": "tsx watch src/index.ts",
+    "start": "node --import ./dist/instrumentation.js dist/index.js",
+    "dev": "tsx watch --import=./dist/instrumentation.js src/index.ts",
     "build:services": "pnpm run build",
     "dev:services": "pnpm run dev",
     "db:push": "pnpm exec drizzle-kit push",
-    "worker:outbox": "tsx src/workers/run-inventory-outbox-publisher.ts",
-    "worker:reservations": "tsx src/workers/run-reservation-expirer.ts",
-    "worker:orders": "tsx src/workers/run-order-events-consumer.ts",
+    "worker:outbox": "tsx --import=./dist/instrumentation.js src/workers/run-inventory-outbox-publisher.ts",
+    "worker:reservations": "tsx --import=./dist/instrumentation.js src/workers/run-reservation-expirer.ts",
+    "worker:orders": "tsx --import=./dist/instrumentation.js src/workers/run-order-events-consumer.ts",
     "test": "DEBUG=testcontainers* vitest"
   },
   "dependencies": {
@@ -27,7 +27,9 @@
     "hono": "^4.10.4",
     "pg": "^8.16.3",
     "pino": "^9.14.0",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "@opentelemetry/sdk-node": "^0.211.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.69.0"
   },
   "devDependencies": {
     "@types/node": "^20.19.24",

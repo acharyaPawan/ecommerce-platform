@@ -1,26 +1,22 @@
 // vite.config.ts
 import { defineConfig, mergeConfig } from "vite";
+import pkg from './package.json'
 
 export default defineConfig({
   build: {
+    ssr: true,
     target: "node22",
     outDir: "dist",
     emptyOutDir: true,
 
     lib: {
-      entry: "src/index.ts",
+      entry: ["src/index.ts", "src/instrumentation.ts"],
       formats: ["es"],
-      fileName: () => "index.js",
+      fileName: (entryName) => `${entryName}.js`,
     },
 
     rollupOptions: {
-      external: [
-        // native node + deps you DON'T want bundled
-        "node:fs",
-        "node:path",
-        "node:http",
-        "node:https",
-      ],
+
     },
 
     sourcemap: true,
