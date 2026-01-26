@@ -26,7 +26,9 @@
     "pg": "^8.16.3",
     "zod": "^4.2.1",
     "@opentelemetry/sdk-node": "^0.211.0",
-    "@opentelemetry/auto-instrumentations-node": "^0.69.0"
+    "@opentelemetry/auto-instrumentations-node": "^0.69.0",
+    "@opentelemetry/sdk-logs": "^0.211.0",
+    "@opentelemetry/exporter-logs-otlp-http": "^0.211.0"
   },
   "devDependencies": {
     "@testcontainers/postgresql": "^11.10.0",

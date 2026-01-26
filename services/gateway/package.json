@@ -23,6 +23,8 @@
     "zod": "^3.24.1",
     "@opentelemetry/sdk-node": "^0.211.0",
     "@opentelemetry/auto-instrumentations-node": "^0.69.0",
+    "@opentelemetry/sdk-logs": "^0.211.0",
+    "@opentelemetry/exporter-logs-otlp-http": "^0.211.0",
     "dotenv": "^17.2.3"
   },
   "devDependencies": {
