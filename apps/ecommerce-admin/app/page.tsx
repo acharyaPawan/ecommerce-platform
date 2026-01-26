@@ -9,6 +9,7 @@ import { formatRelativeTimeFromNow } from "@/lib/format"
 import { getInventoryDashboardData } from "@/lib/server/dashboard-data"
 import type { CatalogProductStatus } from "@/lib/types/catalog"
 import { authClient } from "@/lib/server/auth-client"
+import logger from "@/lib/server/logger"
 import { redirect } from "next/navigation"
 import { headers } from "next/headers"
 
@@ -38,21 +39,19 @@ function parseStatus(value?: string): StatusFilter | undefined {
 }
 
 export default async function Page({ searchParams }: PageProps) {
-//here
-const sessioon = await authClient.getSession({
-  'fetchOptions': {
-    headers: await headers()
-  }
-});
+  const sessioon = await authClient.getSession({
+    fetchOptions: {
+      headers: await headers(),
+    },
+  })
 
-  console.log("Session info: ", sessioon);
+  logger.debug({ hasSession: Boolean(sessioon.data?.session) }, "admin.session.checked")
   if (!sessioon.data?.session) {
     // Redirect to sign-in page
-    const redirectUrl = new URL("/auth/sign-in", "http://localhost:3000");
-    redirectUrl.searchParams.set("redirectTo", "/");
+    const redirectUrl = new URL("/auth/sign-in", "http://localhost:3000")
+    redirectUrl.searchParams.set("redirectTo", "/")
     redirect(redirectUrl.toString())
   }
-  console.log("In page");
   const resolvedSearchParams = searchParams
     ? await searchParams
     : undefined

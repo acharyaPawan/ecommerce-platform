@@ -6,6 +6,7 @@ import {
   ServiceRequestError,
   serviceFetch,
 } from "@/lib/server/service-client"
+import logger from "@/lib/server/logger"
 import type {
   InventoryAdjustmentPayload,
   InventoryAdjustmentResponse,
@@ -19,14 +20,14 @@ export async function getInventorySummary(
   sku: string
 ): Promise<InventorySummary | null> {
   if (!sku) return null
-console.log("In get InventorySummary.")
+  logger.debug({ sku }, "inventory.summary.requested")
   try {
     return await serviceFetch<InventorySummary>({
       service: "inventory",
       path: `/${encodeURIComponent(sku)}`,
     })
   } catch (error) {
-  console.log("Got error, i.e",error)
+    logger.error({ err: error }, "inventory.summary.failed")
     if (error instanceof ServiceRequestError && error.status === 404) {
       return null
     }

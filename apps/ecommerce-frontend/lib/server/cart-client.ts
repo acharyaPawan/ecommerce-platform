@@ -11,6 +11,7 @@ import {
   serviceFetch,
   serviceFetchWithResponse,
 } from "@/lib/server/service-client"
+import logger from "@/lib/server/logger"
 import { headers } from "next/headers"
 import next from "next"
 
@@ -29,15 +30,15 @@ function readCartHeaders(response: Response): CartHeaderSnapshot {
 export async function getCart(cartId: string): Promise<CartResponse | null> {
   if (!cartId) return null
   const nextHeaders = await headers()
-  const newHeader = new Headers(nextHeaders);
-  newHeader.set('x-cart-id', cartId)
+  const newHeader = new Headers(nextHeaders)
+  newHeader.set("x-cart-id", cartId)
 
-  console.log("reaquest headers at this point contains, :", newHeader);
+  logger.debug({ cartId, hasCartHeader: newHeader.has("x-cart-id") }, "cart.headers.prepared")
   try {
     return await serviceFetch<CartResponse>({
       service: "cart",
       path: "/",
-      headers: newHeader
+      headers: newHeader,
     })
   } catch (error) {
     if (error instanceof ServiceRequestError && error.status === 404) {

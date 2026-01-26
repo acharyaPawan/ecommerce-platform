@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { authClient } from "./lib/auth-client"
+import logger from "./lib/server/logger"
 
 const PUBLIC_FILE = /\.(.*)$/
 const PUBLIC_PATH_PREFIXES = ["/auth", "/api/auth", "/_next"]
@@ -32,14 +33,14 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   try {
-    const {data, error} = await authClient.getSession();
+    const { data } = await authClient.getSession()
 
     if (!data?.session) {
       return redirectToSignIn(request)
     }
 
 
-    console.log("GOt data as: ", data);
+    logger.debug({ hasSession: Boolean(data?.session) }, "admin.proxy.session.loaded")
     // const session = data?.session?.roles
     const rawRoles = data?.user.roles
     const roles = Array.isArray(rawRoles)
@@ -48,7 +49,7 @@ export async function proxy(request: NextRequest) {
         ? [rawRoles]
         : []
     const hasAdminRole = roles.includes("admin")
-    console.log('hasAdmin role', hasAdminRole)
+    logger.debug({ hasAdminRole }, "admin.proxy.role.checked")
 
     if (!hasAdminRole) {
       return redirectToSignIn(request)
