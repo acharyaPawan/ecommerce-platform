@@ -12,6 +12,7 @@
   "dependencies": {
     "@base-ui/react": "^1.0.0",
     "@daveyplate/better-auth-ui": "^3.3.12",
+    "@ecommerce/core": "workspace:*",
     "@faker-js/faker": "^10.2.0",
     "@opentelemetry/api-logs": "^0.210.0",
     "@opentelemetry/instrumentation": "^0.210.0",

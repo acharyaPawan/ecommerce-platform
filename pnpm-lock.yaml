@@ -53,6 +53,9 @@ importers:
       '@daveyplate/better-auth-ui':
         specifier: ^3.3.12
         version: 3.3.15(720bea905d91c0fb647f7adb9895c1d2)
+      '@ecommerce/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@faker-js/faker':
         specifier: ^10.2.0
         version: 10.2.0
@@ -180,6 +183,9 @@ importers:
       '@daveyplate/better-auth-ui':
         specifier: ^3.3.15
         version: 3.3.15(720bea905d91c0fb647f7adb9895c1d2)
+      '@ecommerce/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@opentelemetry/api-logs':
         specifier: ^0.210.0
         version: 0.210.0
