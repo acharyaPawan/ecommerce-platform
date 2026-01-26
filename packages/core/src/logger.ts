@@ -10,6 +10,24 @@ export interface LoggerOptions {
   pretty?: boolean;
 }
 
+const resolveLogLevel = (level?: LogLevel): LogLevel => {
+  if (level) {
+    return level;
+  }
+
+  const envLevel = process.env.LOG_LEVEL as LogLevel | undefined;
+  if (envLevel) {
+    return envLevel;
+  }
+
+  return process.env.NODE_ENV === "production" ? "warn" : "trace";
+};
+
+const resolveTargetLevel = (envName: string, fallback: LogLevel): LogLevel => {
+  const envLevel = process.env[envName] as LogLevel | undefined;
+  return envLevel ?? fallback;
+};
+
 const resolvePretty = (pretty?: boolean): boolean => {
   if (typeof pretty === "boolean") {
     return pretty;
@@ -34,17 +52,21 @@ const resolveOtelEnabled = (): boolean =>
 const createTransport = (
   pretty: boolean,
   service: string,
-  env: string
+  env: string,
+  baseLevel: LogLevel
 ): TransportOptions | undefined => {
   const otelEnabled = resolveOtelEnabled();
+  const consoleLevel = resolveTargetLevel("LOG_CONSOLE_LEVEL", baseLevel);
+  const otelLevel = resolveTargetLevel("LOG_OTEL_LEVEL", baseLevel);
 
-  if (!pretty && !otelEnabled) {
+  if (!pretty && !otelEnabled && consoleLevel === baseLevel) {
     return undefined;
   }
 
   const consoleTarget = pretty
     ? {
         target: "pino-pretty",
+        level: consoleLevel,
         options: {
           colorize: true,
           translateTime: "SYS:standard",
@@ -54,6 +76,7 @@ const createTransport = (
       }
     : {
         target: "pino/file",
+        level: consoleLevel,
         options: {
           destination: 1,
         },
@@ -68,6 +91,7 @@ const createTransport = (
       consoleTarget,
       {
         target: "pino-opentelemetry-transport",
+        level: otelLevel,
         options: {
           resourceAttributes: {
             "service.name": service,
@@ -81,10 +105,11 @@ const createTransport = (
 
 export const createLogger = ({ service, level, base, pretty }: LoggerOptions): Logger => {
   const env = process.env.NODE_ENV ?? "development";
-  const transport = createTransport(resolvePretty(pretty), service, env);
+  const resolvedLevel = resolveLogLevel(level);
+  const transport = createTransport(resolvePretty(pretty), service, env, resolvedLevel);
 
   return pino({
-    level: level ?? (process.env.LOG_LEVEL as LogLevel | undefined) ?? "info",
+    level: resolvedLevel,
     base: {
       service,
       env,
