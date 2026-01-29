@@ -1,27 +1,53 @@
-import { cookies, headers } from "next/headers"
+import "server-only"
 
-const APP_URL =
-  process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "http://localhost:3000"
+import { headers } from "next/headers"
+import {
+  loadAuthConfig,
+  resolveVerifyAuthTokenOptions,
+  verifyAuthToken,
+  type VerifiedAuthTokenPayload,
+} from "@ecommerce/core"
 
-export type StarterSession = {
-  session?: {
-    user?: {
-      name?: string | null
-    }
-  }
-  user?: {
-    name?: string | null
-  }
+import { env } from "@/env/server"
+import logger from "./logger"
+
+type TokenResponse = {
+  token?: unknown
 }
 
-export async function loadAuthSession(): Promise<StarterSession | null> {
-  // const cookieStore = cookies()
-  // const cookieHeader = cookieStore.toString()
-  const url = new URL("/api/auth/get-session", APP_URL)
+const authConfig = loadAuthConfig({
+  env: process.env,
+  defaults: {
+    issuer: "iam-svc",
+    audience: "ecommerce-clients",
+  },
+  deriveJwksFromIam: {
+    iamUrl: env.BETTER_AUTH_URL,
+  },
+})
 
-  const response = await fetch(url.toString(), {
+let cachedVerifyOptions: ReturnType<typeof resolveVerifyAuthTokenOptions> | null = null
+
+const getVerifyOptions = () => {
+  if (!cachedVerifyOptions) {
+    cachedVerifyOptions = resolveVerifyAuthTokenOptions(authConfig)
+  }
+  return cachedVerifyOptions
+}
+
+async function fetchAuthTokenFromSession(): Promise<string | null> {
+  const requestHeaders = await headers()
+  const cookieHeader = requestHeaders.get("cookie")
+  if (!cookieHeader) {
+    return null
+  }
+
+  const url = new URL("/api/auth/token", env.BETTER_AUTH_URL)
+  const response = await fetch(url, {
     method: "GET",
-    headers: await headers(),
+    headers: {
+      cookie: cookieHeader,
+    },
     cache: "no-store",
   })
 
@@ -30,8 +56,26 @@ export async function loadAuthSession(): Promise<StarterSession | null> {
   }
 
   try {
-    return (await response.json()) as StarterSession
+    const data = (await response.json()) as TokenResponse | null
+    return typeof data?.token === "string" ? data.token : null
   } catch {
+    return null
+  }
+}
+
+export async function loadVerifiedAuthSession(): Promise<VerifiedAuthTokenPayload | null> {
+  try {
+    const token = await fetchAuthTokenFromSession()
+    if (!token) {
+      return null
+    }
+    const options = getVerifyOptions()
+    return await verifyAuthToken(token, options)
+  } catch (error) {
+    logger.warn(`auth.session.verify.failed ${error}`);
+    // logger.warn("auth.session.verify.failed", {
+    //   message: (error as Error).message,
+    // })
     return null
   }
 }

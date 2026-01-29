@@ -31,6 +31,7 @@ import {
   type VerifyAuthTokenOptions,
 } from "@ecommerce/core";
 import logger from "../logger.js";
+import { isValidJWT } from "zod/v4/core";
 
 type CartRouterDeps = {
   cartService: CartService;
@@ -227,6 +228,7 @@ export function createCartRouter({ cartService, idempotencyStore, config }: Cart
 
     const contextResult = await resolveCartContext(c, authenticateRequest);
     if (contextResult.response) {
+      logger.info("Neither cart ID in header nor authenticated.So, sending unauthorized error.")
       return contextResult.response;
     }
     const context = contextResult.context;
@@ -241,9 +243,10 @@ export function createCartRouter({ cartService, idempotencyStore, config }: Cart
 
     const replay = await readStoredResponse(idempotencyStore, buildRequestScopes(context), idempotencyKey);
     if (replay) {
+      logger.info("Found replay");
       return respondFromStored(c, replay);
     }
-
+    logger.info("replay missing");
     try {
       const result = await cartService.checkout(context, parsed.data);
       const response = {
@@ -285,6 +288,8 @@ async function resolveCartContext(
     return { context };
   } catch (error) {
     if (error instanceof AuthorizationError) {
+      logger.debug(error);
+      logger.info("User is not signed in.");
       const cartId = c.req.header("x-cart-id")?.trim();
       if (cartId) {
         return { context: { cartId } };
@@ -503,6 +508,7 @@ type RequestAuthenticatorOptions = {
 const createRequestAuthenticator = (options: VerifyAuthTokenOptions): RequestAuthenticator => {
   return async (request, authOptions = {}) => {
     const token = readBearerToken(request, { optional: authOptions.optional });
+    logger.debug(`Got token ${token}`);
     if (!token) {
       return null;
     }

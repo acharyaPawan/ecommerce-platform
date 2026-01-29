@@ -20,7 +20,7 @@ const resolveLogLevel = (level?: LogLevel): LogLevel => {
     return envLevel;
   }
 
-  return process.env.NODE_ENV === "production" ? "warn" : "trace";
+  return process.env.NODE_ENV === "production" ? "info" : "trace";
 };
 
 const resolveTargetLevel = (envName: string, fallback: LogLevel): LogLevel => {

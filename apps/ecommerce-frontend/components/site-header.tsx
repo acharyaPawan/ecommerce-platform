@@ -3,7 +3,7 @@ import { ShoppingBag, User2 } from "lucide-react"
 
 import { buttonVariants } from "@/components/ui/button"
 import { getCartId } from "@/lib/server/cart-session"
-import { loadAuthSession } from "@/lib/server/auth-session"
+import { loadVerifiedAuthSession } from "@/lib/server/auth-session"
 import { withServiceAuthFromRequest } from "@/lib/server/service-auth"
 import { getCart } from "@/lib/server/cart-client"
 import { cn } from "@/lib/utils"
@@ -21,12 +21,11 @@ async function loadCartCount() {
 export async function SiteHeader() {
   const [cartCount, authSession] = await Promise.all([
     loadCartCount(),
-    loadAuthSession(),
+    loadVerifiedAuthSession(),
   ])
-  const signedIn =
-    Boolean(authSession?.user) || Boolean(authSession?.session?.user)
-  const accountName =
-    authSession?.user?.name ?? authSession?.session?.user?.name ?? "Account"
+  const signedIn = Boolean(authSession?.userId)
+  console.log("Auth Session:", authSession, signedIn)
+  const accountName = authSession?.name ?? "Account"
 
   return (
     <header className="sticky top-0 z-40 border-b border-[color:var(--line)] bg-[color:var(--canvas)]/80 backdrop-blur">
