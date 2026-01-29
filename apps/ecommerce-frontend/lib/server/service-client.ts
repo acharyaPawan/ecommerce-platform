@@ -2,6 +2,7 @@ import "server-only"
 
 import crypto from "node:crypto"
 
+import { readAuthTokenCookie } from "@/lib/server/auth-token-cookie"
 import { getServiceAuthToken } from "@/lib/server/service-auth-context"
 
 export type ServiceName =
@@ -176,7 +177,7 @@ export async function serviceFetchWithResponse<TResponse>(
     }
   }
 
-  const authToken = getServiceAuthToken()
+  const authToken = getServiceAuthToken() ?? (await readAuthTokenCookie())
   const requestHeaders = new Headers(headers)
   if (!requestHeaders.has("Content-Type")) {
     requestHeaders.set("Content-Type", "application/json")

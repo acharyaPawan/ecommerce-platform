@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { env } from "@/env/server"
+import {
+  AUTH_TOKEN_COOKIE,
+  resolveJwtMaxAgeSeconds,
+} from "@/lib/server/auth-token-cookie"
 
 const sanitizeSetCookie = (value: string) => {
   return value
@@ -60,11 +64,59 @@ const proxyAuthRequest = async (
 
   outgoingHeaders.set("cache-control", "no-store")
 
-  return new NextResponse(response.body, {
+  const pathKey = (params.path ?? []).join("/")
+  const shouldSetTokenCookie = [
+    "sign-in/email",
+    "sign-up/email",
+    "token",
+  ].includes(pathKey)
+  const shouldClearTokenCookie = pathKey === "sign-out"
+
+  if (shouldSetTokenCookie) {
+    try {
+      const data = (await response.clone().json()) as { token?: unknown } | null
+      const token = typeof data?.token === "string" ? data.token : undefined
+
+      const nextResponse = NextResponse.json(data ?? null, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: outgoingHeaders,
+      })
+
+      if (token) {
+        const maxAge = resolveJwtMaxAgeSeconds(token)
+        nextResponse.cookies.set(AUTH_TOKEN_COOKIE, token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          path: "/",
+          ...(maxAge ? { maxAge } : {}),
+        })
+      }
+
+      return nextResponse
+    } catch {
+      // fall through to streaming response
+    }
+  }
+
+  const nextResponse = new NextResponse(response.body, {
     status: response.status,
     statusText: response.statusText,
     headers: outgoingHeaders,
   })
+
+  if (shouldClearTokenCookie) {
+    nextResponse.cookies.set(AUTH_TOKEN_COOKIE, "", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
+    })
+  }
+
+  return nextResponse
 }
 
 const handler = async (
