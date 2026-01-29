@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 
@@ -158,16 +159,22 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
           {mode === "sign-in" ? (
             <>
               New here?{" "}
-              <a className="font-semibold text-[color:var(--ink)]" href="/auth/sign-up">
+              <Link
+                className="font-semibold text-[color:var(--ink)]"
+                href="/auth/sign-up"
+              >
                 Create an account
-              </a>
+              </Link>
             </>
           ) : (
             <>
               Already have an account?{" "}
-              <a className="font-semibold text-[color:var(--ink)]" href="/auth/sign-in">
+              <Link
+                className="font-semibold text-[color:var(--ink)]"
+                href="/auth/sign-in"
+              >
                 Sign in
-              </a>
+              </Link>
             </>
           )}
         </div>
