@@ -178,12 +178,14 @@ export async function serviceFetchWithResponse<TResponse>(
   }
 
   const authToken = getServiceAuthToken() ?? (await readAuthTokenCookie())
+  const normalizedAuthToken =
+    authToken && authToken.split(".").length === 3 ? authToken : undefined
   const requestHeaders = new Headers(headers)
   if (!requestHeaders.has("Content-Type")) {
     requestHeaders.set("Content-Type", "application/json")
   }
-  if (authToken && service !== "iam") {
-    requestHeaders.set("Authorization", `Bearer ${authToken}`)
+  if (normalizedAuthToken && service !== "iam") {
+    requestHeaders.set("Authorization", `Bearer ${normalizedAuthToken}`)
   }
   if (idempotency) {
     requestHeaders.set("Idempotency-Key", crypto.randomUUID())

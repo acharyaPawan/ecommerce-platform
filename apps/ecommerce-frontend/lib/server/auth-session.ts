@@ -37,6 +37,9 @@ export async function loadVerifiedAuthSession(): Promise<VerifiedAuthTokenPayloa
     if (!token) {
       return null
     }
+    if (typeof token !== "string" || token.split(".").length !== 3) {
+      return null
+    }
     const options = getVerifyOptions()
     return await verifyAuthToken(token, options)
   } catch (error) {

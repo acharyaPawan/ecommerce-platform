@@ -65,6 +65,30 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
         return
       }
 
+      const tokenResponse = await fetch("/api/auth/token", {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      })
+
+      if (!tokenResponse.ok) {
+        setError("Signed in, but failed to issue JWT.")
+        setIsSubmitting(false)
+        return
+      }
+      try {
+        const data = (await tokenResponse.json()) as { token?: unknown } | null
+        if (typeof data?.token !== "string") {
+          setError("Signed in, but no JWT was returned.")
+          setIsSubmitting(false)
+          return
+        }
+      } catch {
+        setError("Signed in, but failed to parse JWT response.")
+        setIsSubmitting(false)
+        return
+      }
+
       router.refresh()
       router.push("/")
     } catch (err) {

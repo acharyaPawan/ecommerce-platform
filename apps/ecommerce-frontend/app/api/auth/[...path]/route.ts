@@ -65,11 +65,7 @@ const proxyAuthRequest = async (
   outgoingHeaders.set("cache-control", "no-store")
 
   const pathKey = (params.path ?? []).join("/")
-  const shouldSetTokenCookie = [
-    "sign-in/email",
-    "sign-up/email",
-    "token",
-  ].includes(pathKey)
+  const shouldSetTokenCookie = pathKey === "token"
   const shouldClearTokenCookie = pathKey === "sign-out"
 
   if (shouldSetTokenCookie) {
