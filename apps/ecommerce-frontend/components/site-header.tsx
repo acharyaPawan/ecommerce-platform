@@ -68,7 +68,7 @@ export async function SiteHeader() {
             )}
           </Link>
           <Link
-            href="/auth"
+            href={signedIn ? "/account" : "/auth/sign-in"}
             className={cn(
               buttonVariants({
                 variant: signedIn ? "secondary" : "primary",
