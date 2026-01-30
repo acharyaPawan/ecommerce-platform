@@ -109,6 +109,7 @@ type FetchOptions = RequestInit & {
   searchParams?: Record<string, string | number | boolean | undefined>
   idempotency?: boolean
   timeoutMs?: number
+  json?: unknown
 }
 
 export class ServiceRequestError extends Error {
@@ -141,6 +142,7 @@ export async function serviceFetchWithResponse<TResponse>(
     idempotency,
     timeoutMs,
     signal,
+    json,
     ...rest
   } = options
   const config = getServiceConfig(service)
@@ -191,12 +193,16 @@ export async function serviceFetchWithResponse<TResponse>(
     requestHeaders.set("Idempotency-Key", crypto.randomUUID())
   }
 
+  const hasBody = rest.body !== undefined && rest.body !== null
+  const resolvedBody = !hasBody && json !== undefined ? JSON.stringify(json) : rest.body
+
   try {
     const response = await fetch(url, {
       ...rest,
       headers: requestHeaders,
       signal: controller.signal,
       cache: "no-store",
+      body: resolvedBody,
     })
 
     if (!response.ok) {

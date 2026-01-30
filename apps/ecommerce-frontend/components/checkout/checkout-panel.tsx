@@ -13,7 +13,10 @@ export function CheckoutPanel() {
     checkoutActionInitialState
   )
 
+  console.log("CheckoutPanel state:", state)
+
   const subtotalValue = state.snapshot?.totals.subtotalCents
+  console.log("CheckoutPanel subtotalValue:", subtotalValue)
   const subtotal =
     subtotalValue !== null &&
     subtotalValue !== undefined &&

@@ -162,6 +162,7 @@ export async function checkoutCart(input: CheckoutInput) {
     },
     body,
     idempotency: true,
+    timeoutMs: 20000
   })
 
   return {

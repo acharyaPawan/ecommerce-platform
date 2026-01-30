@@ -1,6 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { redirect } from "next/navigation"
 
 import {
   addCartItem,
@@ -14,6 +15,7 @@ import type {
   CartActionState,
   CheckoutActionState,
 } from "@/app/actions/cart-action-state"
+import logger from "@/lib/server/logger"
 
 export async function addToCartAction(
   _prev: CartActionState,
@@ -134,16 +136,15 @@ export async function checkoutCartAction(
     const result = await withServiceAuthFromRequest(async () =>
       checkoutCart({ cartId, refreshPricing })
     )
+    const orderId = result.result.orderId
+    console.log("orderId is: ", orderId);
+
+    redirect(orderId ? `/orders/confirmation?orderId=${orderId}` : "/orders/confirmation")
+
 
     revalidatePath("/", "layout")
     revalidatePath("/cart")
-    revalidatePath("/checkout")
-
-    return {
-      status: "success",
-      orderId: result.result.orderId,
-      snapshot: result.result.snapshot,
-    }
+    // revalidatePath("/checkout")
   } catch (error) {
     return {
       status: "error",
