@@ -15,6 +15,7 @@ export type ServiceConfig = {
   snapshotSecret: string;
   catalogServiceUrl?: string;
   ordersServiceUrl?: string;
+  ordersServiceTimeoutMs: number;
   auth: AuthConfig;
 };
 
@@ -44,11 +45,14 @@ export function loadConfig(): ServiceConfig {
     snapshotSecret: process.env.CART_SNAPSHOT_SECRET ?? "cart-snapshot-secret",
     catalogServiceUrl: process.env.CATALOG_SERVICE_URL,
     ordersServiceUrl: process.env.ORDERS_SERVICE_URL ?? "http://localhost:3005",
+    ordersServiceTimeoutMs: parseNumber(process.env.ORDERS_SERVICE_TIMEOUT_MS, 2000),
     auth: loadAuthConfig({
       deriveJwksFromIam: {
         iamUrl: process.env.IAM_SERVICE_URL,
       },
       defaults: {
+        issuer: "iam-svc",
+        audience: "ecommerce-clients",
         devUserHeader: "x-user-id",
       },
     }),

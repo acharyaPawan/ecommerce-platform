@@ -1,5 +1,6 @@
 import type { OrdersClient } from "../cart/ports.js";
 import type { CartSnapshot } from "../cart/types.js";
+import logger from "../logger.js";
 
 type FetchFn = typeof fetch;
 
@@ -17,7 +18,8 @@ export class HttpOrdersClient implements OrdersClient {
   constructor(options: OrdersClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, "");
     this.fetchImpl = options.fetch ?? fetch;
-    this.timeoutMs = options.timeoutMs ?? 5000;
+    this.timeoutMs = options.timeoutMs ?? 10000;
+    logger.debug(`In http orders client, timeout is set to ${this.timeoutMs}`);
   }
 
   async placeOrder(snapshot: CartSnapshot): Promise<{ orderId: string }> {

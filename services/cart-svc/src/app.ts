@@ -48,7 +48,12 @@ export async function createApp(deps: AppDependencies = {}): Promise<CartApp> {
 
   const ordersClient =
     deps.ordersClient ??
-    (config.ordersServiceUrl ? new HttpOrdersClient({ baseUrl: config.ordersServiceUrl }) : undefined);
+    (config.ordersServiceUrl
+      ? new HttpOrdersClient({
+          baseUrl: config.ordersServiceUrl,
+          timeoutMs: config.ordersServiceTimeoutMs,
+        })
+      : undefined);
 
   const cartService =
     deps.cartService ??

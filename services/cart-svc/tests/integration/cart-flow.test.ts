@@ -155,4 +155,42 @@ describe('cart HTTP flows', () => {
       await app.dispose();
     }
   });
+
+  it('returns snapshot even when orders client fails', async () => {
+    const ordersClient: OrdersClient = {
+      async placeOrder() {
+        throw new Error('orders service unavailable');
+      },
+    };
+
+    const { app } = await createTestApp({ ordersClient });
+    try {
+      const addRes = await app.request('/api/cart/items', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'idempotency-key': 'orders-fail-add',
+        },
+        body: JSON.stringify({ sku: 'sku-timeout', qty: 1 }),
+      });
+      expect(addRes.status).toBe(201);
+      const cartId = addRes.headers.get('x-cart-id');
+      expect(cartId).toBeTruthy();
+
+      const checkoutRes = await app.request('/api/cart/checkout', {
+        method: 'POST',
+        headers: {
+          'x-cart-id': cartId!,
+          'idempotency-key': 'orders-fail-checkout',
+        },
+      });
+
+      expect(checkoutRes.status).toBe(200);
+      const checkoutPayload = await checkoutRes.json<{ snapshot: { cartId: string }; orderId?: string }>();
+      expect(checkoutPayload.snapshot.cartId).toBe(cartId);
+      expect(checkoutPayload.orderId).toBeUndefined();
+    } finally {
+      await app.dispose();
+    }
+  });
 });

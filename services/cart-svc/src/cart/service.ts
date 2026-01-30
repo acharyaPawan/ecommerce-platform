@@ -248,8 +248,7 @@ export class CartService {
         const result = await this.options.ordersClient.placeOrder(snapshot);
         orderId = result.orderId;
       } catch (error) {
-        logger.error({ err: error }, "cart.orders.place_failed");
-        throw new CartCheckoutError("Orders service rejected checkout");
+        logger.warn({ err: error }, "cart.orders.place_failed");
       }
     }
 
