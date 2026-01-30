@@ -66,3 +66,15 @@ export interface CatalogListResponse {
   items: CatalogProduct[]
   nextCursor?: string
 }
+
+export interface CatalogPricingQuote {
+  sku: string
+  variantId: string
+  unitPriceCents: number
+  currency: string
+  title: string | null
+}
+
+export interface CatalogPricingQuoteResponse {
+  items: CatalogPricingQuote[]
+}

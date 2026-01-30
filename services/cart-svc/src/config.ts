@@ -2,6 +2,7 @@ import { loadAuthConfig, type AuthConfig } from "@ecommerce/core";
 
 const DEFAULT_CART_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
 const DEFAULT_IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60; // 24 hours
+const DEFAULT_CATALOG_TIMEOUT_MS = 10000; // 10 seconds
 
 export type ServiceConfig = {
   serviceName: string;
@@ -14,6 +15,7 @@ export type ServiceConfig = {
   maxQtyPerItem: number;
   snapshotSecret: string;
   catalogServiceUrl?: string;
+  catalogServiceTimeoutMs: number;
   ordersServiceUrl?: string;
   ordersServiceTimeoutMs: number;
   auth: AuthConfig;
@@ -44,8 +46,12 @@ export function loadConfig(): ServiceConfig {
     maxQtyPerItem: parseNumber(process.env.CART_MAX_QTY_PER_ITEM, 25),
     snapshotSecret: process.env.CART_SNAPSHOT_SECRET ?? "cart-snapshot-secret",
     catalogServiceUrl: process.env.CATALOG_SERVICE_URL,
+    catalogServiceTimeoutMs: parseNumber(
+      process.env.CATALOG_SERVICE_TIMEOUT_MS,
+      DEFAULT_CATALOG_TIMEOUT_MS
+    ),
     ordersServiceUrl: process.env.ORDERS_SERVICE_URL ?? "http://localhost:3005",
-    ordersServiceTimeoutMs: parseNumber(process.env.ORDERS_SERVICE_TIMEOUT_MS, 2000),
+    ordersServiceTimeoutMs: parseNumber(process.env.ORDERS_SERVICE_TIMEOUT_MS, 10000),
     auth: loadAuthConfig({
       deriveJwksFromIam: {
         iamUrl: process.env.IAM_SERVICE_URL,

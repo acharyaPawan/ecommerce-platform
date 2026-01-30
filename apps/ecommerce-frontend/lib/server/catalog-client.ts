@@ -10,6 +10,7 @@ import type {
   CatalogListResponse,
   CatalogProduct,
   CatalogProductStatus,
+  CatalogPricingQuoteResponse,
 } from "@/lib/types/catalog"
 
 type ListCatalogParams = {
@@ -50,4 +51,26 @@ export async function getCatalogProduct(
     }
     throw error
   }
+}
+
+type PricingQuoteItem = {
+  sku: string
+  variantId?: string | null
+}
+
+export async function quoteCatalogPricing(
+  items: PricingQuoteItem[]
+): Promise<CatalogPricingQuoteResponse> {
+  if (items.length === 0) {
+    return { items: [] }
+  }
+
+  return serviceFetch<CatalogPricingQuoteResponse>({
+    service: "catalog",
+    path: "/pricing/quote",
+    method: "POST",
+    json: {
+      items,
+    },
+  })
 }

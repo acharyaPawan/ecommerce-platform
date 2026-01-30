@@ -1,5 +1,11 @@
 import { createHmac, randomUUID } from "node:crypto";
-import { CartCheckoutError, CartItemNotFoundError, CartNotFoundError, CartValidationError } from "./errors.js";
+import {
+  CartCheckoutError,
+  CartDependencyError,
+  CartItemNotFoundError,
+  CartNotFoundError,
+  CartValidationError,
+} from "./errors.js";
 import type { CartStore } from "./store.js";
 import type {
   Cart,
@@ -234,24 +240,37 @@ export class CartService {
 
   async checkout(context: CartContext, _payload: CheckoutPayload): Promise<CartCheckoutResult> {
     const { cart } = await this.resolveCart(context);
+    logger.info({ cartId: cart.id, userId: context.userId }, "cart.checkout.started");
 
     if (cart.items.length === 0) {
+      logger.warn({ cartId: cart.id }, "cart.checkout.empty_cart");
       throw new CartCheckoutError("Cart is empty");
     }
 
+    logger.debug({ cartId: cart.id, itemCount: cart.items.length }, "cart.checkout.computing_pricing");
     const { items: pricedItems, pricingSnapshot } = await this.computePricingSnapshot(cart);
-    const snapshot = this.buildSnapshot(cart, pricedItems, pricingSnapshot);
+    logger.debug({ cartId: cart.id, subtotalCents: pricingSnapshot?.subtotalCents }, "cart.checkout.pricing_computed");
 
-    let orderId: string | undefined;
-    if (this.options.ordersClient) {
-      try {
-        const result = await this.options.ordersClient.placeOrder(snapshot);
-        orderId = result.orderId;
-      } catch (error) {
-        logger.warn({ err: error }, "cart.orders.place_failed");
-      }
+    const snapshot = this.buildSnapshot(cart, pricedItems, pricingSnapshot);
+    logger.debug({ snapshotId: snapshot.snapshotId }, "cart.checkout.snapshot_built");
+
+    if (!this.options.ordersClient) {
+      logger.error({ cartId: cart.id }, "cart.checkout.orders_client_unavailable");
+      throw new CartDependencyError("Orders service unavailable");
     }
 
+    let orderId: string;
+    try {
+      logger.info({ cartId: cart.id, snapshotId: snapshot.snapshotId }, "cart.checkout.placing_order");
+      const result = await this.options.ordersClient.placeOrder(snapshot);
+      orderId = result.orderId;
+      logger.info({ cartId: cart.id, orderId }, "cart.checkout.order_placed");
+    } catch (error) {
+      logger.warn({ err: error, cartId: cart.id }, "cart.orders.place_failed");
+      throw new CartDependencyError("Orders service rejected checkout");
+    }
+
+    logger.debug({ cartId: cart.id }, "cart.checkout.clearing_cart");
     const clearedCart = await this.store.updateCart(cart.id, (current) => {
       if (!current) {
         throw new CartNotFoundError();
@@ -266,9 +285,11 @@ export class CartService {
     });
 
     if (!clearedCart) {
+      logger.error({ cartId: cart.id, orderId }, "cart.checkout.finalize_failed");
       throw new CartCheckoutError("Failed to finalize cart");
     }
 
+    logger.info({ cartId: cart.id, orderId }, "cart.checkout.completed");
     return {
       snapshot,
       cart: clearedCart,
@@ -281,18 +302,25 @@ export class CartService {
     pricingSnapshot: CartPricingSnapshot | null;
   }> {
     if (!this.options.pricingProvider) {
+      logger.debug({ cartId: cart.id }, "cart.pricing.provider_unavailable");
       return {
         items: cart.items.map((item) => ({ ...item })),
         pricingSnapshot: null,
       };
     }
 
+    logger.debug({ cartId: cart.id, itemCount: cart.items.length }, "cart.pricing.requesting_quotes");
     let quotes: PricingQuote[];
     try {
       quotes = await this.options.pricingProvider.quote(cart.items);
+      logger.debug({ cartId: cart.id, quoteCount: quotes.length }, "cart.pricing.quotes_received");
     } catch (error) {
-      logger.error({ err: error }, "cart.pricing.quote_failed");
-      throw new CartCheckoutError("Failed to refresh pricing");
+      if (isAbortError(error)) {
+        logger.warn({ err: error, cartId: cart.id }, "cart.pricing.quote_timeout");
+        throw new CartDependencyError("Pricing service timed out", error);
+      }
+      logger.error({ err: error, cartId: cart.id }, "cart.pricing.quote_failed");
+      throw new CartDependencyError("Pricing service failed", error);
     }
 
     const normalizedQuotes = quotes.map((quote) => ({
@@ -311,9 +339,11 @@ export class CartService {
       const key = this.buildItemKey(item);
       const quote = priceByKey.get(key);
       if (!quote) {
+        logger.error({ cartId: cart.id, sku: item.sku }, "cart.pricing.missing_quote");
         throw new CartCheckoutError(`Missing pricing for SKU ${item.sku}`);
       }
       if (currency && quote.currency !== currency) {
+        logger.error({ cartId: cart.id, previousCurrency: currency, newCurrency: quote.currency }, "cart.pricing.currency_mismatch");
         throw new CartCheckoutError("Pricing currency mismatch detected");
       }
       currency = currency ?? quote.currency;
@@ -336,6 +366,7 @@ export class CartService {
       computedAt: new Date().toISOString(),
     };
 
+    logger.debug({ cartId: cart.id, subtotalCents, currency }, "cart.pricing.snapshot_complete");
     return {
       items: pricedItems,
       pricingSnapshot,
@@ -451,6 +482,17 @@ export class CartService {
       signature,
     };
   }
+}
+
+function isAbortError(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+  const err = error as { name?: string; code?: number | string };
+  if (err.name === "AbortError") {
+    return true;
+  }
+  return err.code === 20 || err.code === "UND_ERR_ABORTED";
 }
 
 function normalizeSku(value: string): string {

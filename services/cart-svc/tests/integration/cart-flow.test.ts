@@ -5,7 +5,12 @@ import type { CartSnapshot } from '../../src/cart/types.js';
 
 describe('cart HTTP flows', () => {
   it('creates, updates, and checks out an anonymous cart', async () => {
-    const { app } = await createTestApp();
+    const ordersClient: OrdersClient = {
+      async placeOrder() {
+        return { orderId: 'order-1' };
+      },
+    };
+    const { app } = await createTestApp({ ordersClient });
     try {
       const addRes = await app.request('/api/cart/items', {
         method: 'POST',
@@ -156,7 +161,7 @@ describe('cart HTTP flows', () => {
     }
   });
 
-  it('returns snapshot even when orders client fails', async () => {
+  it('fails checkout when orders client fails and leaves cart intact', async () => {
     const ordersClient: OrdersClient = {
       async placeOrder() {
         throw new Error('orders service unavailable');
@@ -185,10 +190,18 @@ describe('cart HTTP flows', () => {
         },
       });
 
-      expect(checkoutRes.status).toBe(200);
-      const checkoutPayload = await checkoutRes.json<{ snapshot: { cartId: string }; orderId?: string }>();
-      expect(checkoutPayload.snapshot.cartId).toBe(cartId);
-      expect(checkoutPayload.orderId).toBeUndefined();
+      expect(checkoutRes.status).toBe(503);
+      const checkoutPayload = await checkoutRes.json<{ error: string; code: string }>();
+      expect(checkoutPayload.code).toBe('CART_DEPENDENCY_FAILED');
+
+      const getRes = await app.request('/api/cart', {
+        headers: {
+          'x-cart-id': cartId!,
+        },
+      });
+      expect(getRes.status).toBe(200);
+      const getPayload = await getRes.json<{ items: Array<{ sku: string }> }>();
+      expect(getPayload.items).toHaveLength(1);
     } finally {
       await app.dispose();
     }

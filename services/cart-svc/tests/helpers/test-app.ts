@@ -24,6 +24,7 @@ export async function createTestApp(options: CreateTestAppOptions = {}) {
     maxQtyPerItem: 25,
     snapshotSecret: 'test-secret',
     ordersServiceUrl: undefined,
+    ordersServiceTimeoutMs: 2000,
   };
 
   const cartStore = new InMemoryCartStore();

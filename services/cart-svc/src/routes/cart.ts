@@ -15,6 +15,7 @@ import type { ServiceConfig } from "../config.js";
 import {
   CartCheckoutError,
   CartConcurrencyError,
+  CartDependencyError,
   CartError,
   CartItemNotFoundError,
   CartNotFoundError,
@@ -423,6 +424,9 @@ function mapCartError(c: Context, error: unknown) {
   }
   if (error instanceof CartCheckoutError) {
     return c.json({ error: error.message, code: error.code }, 400);
+  }
+  if (error instanceof CartDependencyError) {
+    return c.json({ error: error.message, code: error.code }, 503);
   }
   if (error instanceof CartConcurrencyError) {
     return c.json({ error: error.message, code: error.code }, 409);

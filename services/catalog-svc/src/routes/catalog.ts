@@ -26,6 +26,8 @@ export const createCatalogApi = ({ auth }: CatalogRouterDeps): Hono => {
   const authenticateRequest = createRequestAuthenticator(verifyOptions);
 
   router.get("/products", async (c) => {
+    logger.debug({ query: c.req.query() }, "catalog.products.list_requested");
+    
     const parsed = listProductsQuerySchema.safeParse({
       status: c.req.query("status"),
       limit: c.req.query("limit"),
@@ -34,16 +36,22 @@ export const createCatalogApi = ({ auth }: CatalogRouterDeps): Hono => {
     });
 
     if (!parsed.success) {
+      logger.warn({ errors: parsed.error.flatten() }, "catalog.products.list_validation_failed");
       return c.json({ error: "Validation failed", details: parsed.error.flatten() }, 422);
     }
 
     try {
+      logger.debug(
+        { limit: parsed.data.limit, status: parsed.data.status, search: parsed.data.q },
+        "catalog.products.list_querying"
+      );
       const result = await listProducts({
         limit: parsed.data.limit,
         cursor: parsed.data.cursor,
         search: parsed.data.q,
         status: parsed.data.status === "all" ? undefined : parsed.data.status,
       });
+      logger.debug({ count: result.items?.length }, "catalog.products.list_success");
       return c.json(result);
     } catch (error) {
       logger.error({ err: error }, "catalog.products.list_failed");
@@ -53,15 +61,20 @@ export const createCatalogApi = ({ auth }: CatalogRouterDeps): Hono => {
 
   router.get("/products/:productId", async (c) => {
     const productId = c.req.param("productId");
+    logger.debug({ productId }, "catalog.products.get_requested");
+    
     if (!productId?.trim()) {
+      logger.warn("catalog.products.get_invalid_id");
       return c.json({ error: "Product ID is required" }, 400);
     }
 
     try {
       const product = await getProduct(productId);
       if (!product) {
+        logger.warn({ productId }, "catalog.products.get_not_found");
         return c.json({ error: "Product not found" }, 404);
       }
+      logger.debug({ productId, title: product.title }, "catalog.products.get_success");
       return c.json(product);
     } catch (error) {
       logger.error({ err: error, productId }, "catalog.products.load_failed");
@@ -70,6 +83,8 @@ export const createCatalogApi = ({ auth }: CatalogRouterDeps): Hono => {
   });
 
   router.post("/products", async (c) => {
+    logger.debug("catalog.products.create_requested");
+    
     const authResponse = await requireAdmin(c, authenticateRequest);
     logger.debug({ isAuthorized: !authResponse }, "catalog.auth.admin_check");
     if (authResponse) {
@@ -79,12 +94,14 @@ export const createCatalogApi = ({ auth }: CatalogRouterDeps): Hono => {
     let body: unknown;
     try {
       body = await c.req.json();
-    } catch {
+    } catch (error) {
+      logger.warn({ err: error }, "catalog.products.create_invalid_json");
       return c.json({ error: "Invalid JSON payload" }, 400);
     }
 
     const parsed = createProductSchema.safeParse(body);
     if (!parsed.success) {
+      logger.warn({ errors: parsed.error.format() }, "catalog.products.create_validation_failed");
       return c.json(
         {
           error: "Validation failed",
@@ -95,12 +112,17 @@ export const createCatalogApi = ({ auth }: CatalogRouterDeps): Hono => {
     }
 
     try {
+      logger.debug({ title: parsed.data.title, status: parsed.data.status }, "catalog.products.create_processing");
       const result = await createProduct(parsed.data, {
         correlationId: c.req.header("x-request-id") ?? undefined,
         idempotencyKey: c.req.header("idempotency-key") ?? undefined,
       });
 
       c.header("x-idempotent-replay", result.idempotent ? "true" : "false");
+      logger.debug(
+        { productId: result.productId, idempotent: result.idempotent },
+        "catalog.products.create_success"
+      );
 
       return c.json(
         {
@@ -115,31 +137,38 @@ export const createCatalogApi = ({ auth }: CatalogRouterDeps): Hono => {
   });
 
   router.post("/pricing/quote", async (c) => {
+    logger.debug("catalog.pricing.quote_requested");
+    
     let body: unknown;
     try {
       body = await c.req.json();
-    } catch {
+    } catch (error) {
+      logger.warn({ err: error }, "catalog.pricing.quote_invalid_json");
       return c.json({ error: "Invalid JSON payload" }, 400);
     }
 
     const parsed = pricingQuoteSchema.safeParse(body);
     if (!parsed.success) {
+      logger.warn({ errors: parsed.error.flatten() }, "catalog.pricing.quote_validation_failed");
       return c.json({ error: "Validation failed", details: parsed.error.flatten() }, 422);
     }
 
     try {
+      logger.debug({ itemCount: parsed.data.items.length }, "catalog.pricing.quote_processing");
       const quotes = await quotePricing(
         parsed.data.items.map((item) => ({
           sku: item.sku,
           variantId: item.variantId ?? null,
         }))
       );
+      logger.debug({ quoteCount: quotes.length }, "catalog.pricing.quote_success");
       return c.json({ items: quotes });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to quote pricing";
       const status = message.includes("Variant not found") || message.includes("Missing price")
         ? 422
         : 500;
+      logger.error({ err: error, message, status }, "catalog.pricing.quote_failed");
       return c.json({ error: message }, status as ContentfulStatusCode);
     }
   });
@@ -156,12 +185,16 @@ async function requireAdmin(
     if (!user) {
       throw new AuthorizationError("Authentication required", 401);
     }
+    logger.debug({ userId: user.userId, roles: user.roles }, "catalog.auth.user_authenticated");
+    
     if (!user.roles.includes("admin")) {
+      logger.warn({ userId: user.userId, roles: user.roles }, "catalog.auth.insufficient_permissions");
       throw new AuthorizationError("Admin role required", 403);
     }
     return null;
   } catch (error) {
     if (error instanceof AuthorizationError) {
+      logger.warn({ status: error.status, message: error.message }, "catalog.auth.authorization_failed");
       return c.json(
         {
           error: error.status === 401 ? "unauthorized" : "forbidden",

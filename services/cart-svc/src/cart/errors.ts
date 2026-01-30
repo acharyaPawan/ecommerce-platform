@@ -39,3 +39,10 @@ export class CartCheckoutError extends CartError {
     this.name = "CartCheckoutError";
   }
 }
+
+export class CartDependencyError extends CartError {
+  constructor(message = "Downstream dependency failed", details?: unknown) {
+    super(message, "CART_DEPENDENCY_FAILED", details);
+    this.name = "CartDependencyError";
+  }
+}
