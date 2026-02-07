@@ -18,6 +18,7 @@ export type AuthenticatedUser = {
 };
 
 export type UserResolver = (request: Request) => Promise<AuthenticatedUser | null>;
+const remoteJwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
 export interface LoadAuthConfigOptions {
   env?: Record<string, string | undefined>;
@@ -66,7 +67,7 @@ export const createUserResolver = (
   options: UserResolverOptions = {}
 ): UserResolver => {
   if (config.jwksUrl) {
-    const jwks = createRemoteJWKSet(new URL(config.jwksUrl));
+    const jwks = getOrCreateRemoteJwks(config.jwksUrl);
     return async (request) => {
       const header = request.headers.get("authorization");
       if (!header?.toLowerCase().startsWith("bearer ")) {
@@ -158,12 +159,23 @@ export const verifyAuthToken = async (
   token: string,
   options: VerifyAuthTokenOptions
 ): Promise<VerifiedAuthTokenPayload> => {
-  const jwks = createRemoteJWKSet(new URL(options.jwksUrl));
+  const jwks = getOrCreateRemoteJwks(options.jwksUrl);
   const { payload } = await jwtVerify(token, jwks, {
     issuer: options.issuer,
     ...(options.audience ? { audience: options.audience } : {}),
   });
   return mapPayloadToVerifiedToken(token, payload);
+};
+
+const getOrCreateRemoteJwks = (jwksUrl: string): ReturnType<typeof createRemoteJWKSet> => {
+  const existing = remoteJwksCache.get(jwksUrl);
+  if (existing) {
+    return existing;
+  }
+
+  const created = createRemoteJWKSet(new URL(jwksUrl));
+  remoteJwksCache.set(jwksUrl, created);
+  return created;
 };
 
 export interface ReadBearerTokenOptions {

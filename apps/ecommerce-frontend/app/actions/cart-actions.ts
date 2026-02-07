@@ -9,6 +9,7 @@ import {
   removeCartItem,
   updateCartItem,
 } from "@/lib/server/cart-client"
+import { createShipment } from "@/lib/server/fulfillment-client"
 import { getCartId, setCartId } from "@/lib/server/cart-session"
 import { withServiceAuthFromRequest } from "@/lib/server/service-auth"
 import type {
@@ -131,24 +132,31 @@ export async function checkoutCartAction(
   }
 
   const refreshPricing = formData.get("refreshPricing") === "true"
+  let orderId: string | undefined
 
   try {
     const result = await withServiceAuthFromRequest(async () =>
       checkoutCart({ cartId, refreshPricing })
     )
-    const orderId = result.result.orderId
-    console.log("orderId is: ", orderId);
-
-    redirect(orderId ? `/orders/confirmation?orderId=${orderId}` : "/orders/confirmation")
-
-
+    orderId = result.result.orderId
     revalidatePath("/", "layout")
     revalidatePath("/cart")
-    // revalidatePath("/checkout")
+
+    if (orderId) {
+      const confirmedOrderId = orderId
+      const shipment = await withServiceAuthFromRequest(async () =>
+        createShipment(confirmedOrderId)
+      )
+      if (!shipment) {
+        logger.warn({ orderId: confirmedOrderId }, "checkout.fulfillment_shipment_not_created")
+      }
+    }
   } catch (error) {
     return {
       status: "error",
       message: error instanceof Error ? error.message : "Checkout failed.",
     }
   }
+
+  redirect(orderId ? `/orders/confirmation?orderId=${orderId}` : "/orders/confirmation")
 }
