@@ -1,3 +1,4 @@
+import { describe, expect, it } from "vitest";
 import { createApp } from "../../src/app.js";
 import type { FulfillmentServiceConfig } from "../../src/config.js";
 

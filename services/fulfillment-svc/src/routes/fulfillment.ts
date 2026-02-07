@@ -43,7 +43,7 @@ export const createFulfillmentRouter = ({ service, config }: RouterDeps): Hono =
 
   router.post("/shipments", async (c) => {
     const payload = await readJson(c);
-    if (!payload.success) {
+    if (payload.success === false) {
       return c.json({ error: payload.error }, 400);
     }
 
