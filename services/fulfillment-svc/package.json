@@ -1,0 +1,33 @@
+{
+  "name": "@ecommerce/fulfillment-svc",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node --import ./dist/instrumentation.js dist/index.js",
+    "dev": "tsx watch --import=./dist/instrumentation.js src/index.ts",
+    "build:services": "pnpm run build",
+    "dev:services": "pnpm run dev",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@ecommerce/core": "workspace:*",
+    "@hono/node-server": "^1.19.6",
+    "@opentelemetry/auto-instrumentations-node": "^0.69.0",
+    "@opentelemetry/exporter-logs-otlp-http": "^0.211.0",
+    "@opentelemetry/sdk-logs": "^0.211.0",
+    "@opentelemetry/sdk-node": "^0.211.0",
+    "dotenv": "^17.2.3",
+    "hono": "^4.10.4",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.24",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.16"
+  }
+}
