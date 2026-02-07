@@ -132,29 +132,31 @@ export async function checkoutCartAction(
   }
 
   const refreshPricing = formData.get("refreshPricing") === "true"
+  let orderId: string | undefined
 
   try {
     const result = await withServiceAuthFromRequest(async () =>
       checkoutCart({ cartId, refreshPricing })
     )
-    const orderId = result.result.orderId
+    orderId = result.result.orderId
     revalidatePath("/", "layout")
     revalidatePath("/cart")
 
     if (orderId) {
+      const confirmedOrderId = orderId
       const shipment = await withServiceAuthFromRequest(async () =>
-        createShipment(orderId)
+        createShipment(confirmedOrderId)
       )
       if (!shipment) {
-        logger.warn({ orderId }, "checkout.fulfillment_shipment_not_created")
+        logger.warn({ orderId: confirmedOrderId }, "checkout.fulfillment_shipment_not_created")
       }
     }
-
-    redirect(orderId ? `/orders/confirmation?orderId=${orderId}` : "/orders/confirmation")
   } catch (error) {
     return {
       status: "error",
       message: error instanceof Error ? error.message : "Checkout failed.",
     }
   }
+
+  redirect(orderId ? `/orders/confirmation?orderId=${orderId}` : "/orders/confirmation")
 }
