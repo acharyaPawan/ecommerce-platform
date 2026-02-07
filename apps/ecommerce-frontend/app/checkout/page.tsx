@@ -3,11 +3,14 @@ import Link from "next/link"
 import { CheckoutPanel } from "@/components/checkout/checkout-panel"
 import { formatCurrency } from "@/lib/format"
 import { loadCartView } from "@/lib/server/cart-view"
+import { getShippingOptions } from "@/lib/server/fulfillment-client"
+import { withServiceAuthFromRequest } from "@/lib/server/service-auth"
 
 export const dynamic = "force-dynamic"
 
 export default async function CheckoutPage() {
   let cartView = null
+  let shippingOptions: Awaited<ReturnType<typeof getShippingOptions>> = null
 
   try {
     cartView = await loadCartView()
@@ -41,6 +44,13 @@ export default async function CheckoutPage() {
     cartView.subtotalCents,
     cartView.currency
   )
+  try {
+    shippingOptions = await withServiceAuthFromRequest(async () =>
+      getShippingOptions({ country: "US" })
+    )
+  } catch {
+    shippingOptions = null
+  }
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-10 px-4 py-12">
@@ -78,8 +88,35 @@ export default async function CheckoutPage() {
             </div>
             <div className="mt-2 flex items-center justify-between">
               <span className="text-muted">Shipping</span>
-              <span className="font-semibold">Calculated next</span>
+              <span className="font-semibold">
+                {shippingOptions?.options?.[0]
+                  ? formatCurrency(
+                      shippingOptions.options[0].amount,
+                      shippingOptions.options[0].currency
+                    )
+                  : "Calculated next"}
+              </span>
             </div>
+            {shippingOptions?.options?.length ? (
+              <div className="mt-3 space-y-2 rounded-xl border border-[color:var(--line)] p-3">
+                <p className="text-xs uppercase tracking-[0.2em] text-muted">
+                  Shipping options
+                </p>
+                {shippingOptions.options.map((option) => (
+                  <div
+                    key={option.id}
+                    className="flex items-center justify-between text-xs"
+                  >
+                    <p className="text-muted">
+                      {option.label} ({option.estimatedDeliveryDays} days)
+                    </p>
+                    <p className="font-semibold">
+                      {formatCurrency(option.amount, option.currency)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
         <CheckoutPanel />
