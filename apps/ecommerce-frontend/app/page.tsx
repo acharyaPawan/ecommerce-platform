@@ -38,6 +38,7 @@ export default async function Page({ searchParams }: PageProps) {
       ? resolvedSearchParams.category.trim()
       : undefined
 
+  // Due to db cold start, sometime this result timeout error.
   const data = await loadStorefrontData({ query, category })
 
   return (
