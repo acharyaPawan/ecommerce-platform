@@ -1,8 +1,14 @@
 import type { CartSnapshot } from "@/lib/types/cart"
 
+export type OrderStatus =
+  | "pending_inventory"
+  | "confirmed"
+  | "rejected"
+  | "canceled"
+
 export type OrderRecord = {
   id: string
-  status: string
+  status: OrderStatus
   currency: string
   userId: string | null
   totals: Record<string, unknown>

@@ -1,11 +1,12 @@
 import "server-only"
 
+import { cache } from "react"
 import { cookies } from "next/headers"
 import { env } from "@/env/server"
 
 export const AUTH_TOKEN_COOKIE = "ecom_auth_token"
 
-export async function readAuthTokenCookie(): Promise<string | undefined> {
+async function readAuthTokenCookieImpl(): Promise<string | undefined> {
   const store = await cookies()
   const token = store.get(AUTH_TOKEN_COOKIE)?.value
 
@@ -13,9 +14,16 @@ export async function readAuthTokenCookie(): Promise<string | undefined> {
     return token
   }
 
+  if (isJwtShape(token)) {
+    const minted = await mintTokenFromSessionCookies(store)
+    return minted ?? token
+  }
+
   const minted = await mintTokenFromSessionCookies(store)
   return minted
 }
+
+export const readAuthTokenCookie = cache(readAuthTokenCookieImpl)
 
 export function resolveJwtMaxAgeSeconds(token: string): number | undefined {
   const payload = token.split(".")[1]
@@ -36,7 +44,7 @@ export function resolveJwtMaxAgeSeconds(token: string): number | undefined {
 }
 
 function isUsableJwt(token: string | undefined): token is string {
-  if (!token || token.split(".").length !== 3) {
+  if (!isJwtShape(token)) {
     return false
   }
 
@@ -46,6 +54,10 @@ function isUsableJwt(token: string | undefined): token is string {
   }
 
   return maxAge > 30
+}
+
+function isJwtShape(token: string | undefined): token is string {
+  return Boolean(token && token.split(".").length === 3)
 }
 
 async function mintTokenFromSessionCookies(
@@ -62,14 +74,22 @@ async function mintTokenFromSessionCookies(
 
   try {
     const target = new URL("/api/auth/token", env.BETTER_AUTH_URL)
-    const response = await fetch(target, {
-      method: "GET",
-      headers: {
-        cookie: cookieHeader,
-        accept: "application/json",
-      },
-      cache: "no-store",
-    })
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 8_000)
+    let response: Response
+    try {
+      response = await fetch(target, {
+        method: "GET",
+        headers: {
+          cookie: cookieHeader,
+          accept: "application/json",
+        },
+        cache: "no-store",
+        signal: controller.signal,
+      })
+    } finally {
+      clearTimeout(timeout)
+    }
 
     if (!response.ok) {
       return undefined

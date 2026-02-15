@@ -24,7 +24,6 @@ export async function SiteHeader() {
     loadVerifiedAuthSession(),
   ])
   const signedIn = Boolean(authSession?.userId)
-  console.log("Auth Session:", authSession, signedIn)
   const accountName = authSession?.name ?? "Account"
 
   return (

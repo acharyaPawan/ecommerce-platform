@@ -26,11 +26,11 @@ const defaultServiceConfig: Record<ServiceName, ServiceConfig> = {
   catalog: { url: "http://localhost:3002", timeoutMs: 15_000 },
   inventory: { url: "http://localhost:3003", timeoutMs: 10_000 },
   cart: { url: "http://localhost:3004", timeoutMs: 12000 },
-  orders: { url: "http://localhost:3005", timeoutMs: 800 },
-  ordersRead: { url: "http://localhost:3005", timeoutMs: 600 },
-  payments: { url: "http://localhost:3007", timeoutMs: 800 },
-  paymentsRead: { url: "http://localhost:3008", timeoutMs: 600 },
-  fulfillment: { url: "http://localhost:3009", timeoutMs: 600 },
+  orders: { url: "http://localhost:3005", timeoutMs: 10_000 },
+  ordersRead: { url: "http://localhost:3005", timeoutMs: 10_000 },
+  payments: { url: "http://localhost:3007", timeoutMs: 10_000 },
+  paymentsRead: { url: "http://localhost:3008", timeoutMs: 10_000 },
+  fulfillment: { url: "http://localhost:3009", timeoutMs: 10_000 },
 }
 
 const serviceEnvKeys: Record<ServiceName, { url: string; timeout: string }> = {
@@ -110,6 +110,7 @@ type FetchOptions = RequestInit & {
   idempotency?: boolean
   timeoutMs?: number
   json?: unknown
+  omitUserAuthorization?: boolean
 }
 
 export class ServiceRequestError extends Error {
@@ -143,6 +144,7 @@ export async function serviceFetchWithResponse<TResponse>(
     timeoutMs,
     signal,
     json,
+    omitUserAuthorization,
     ...rest
   } = options
   const config = getServiceConfig(service)
@@ -179,7 +181,9 @@ export async function serviceFetchWithResponse<TResponse>(
     }
   }
 
-  const authToken = getServiceAuthToken() ?? (await readAuthTokenCookie())
+  const authToken = omitUserAuthorization
+    ? null
+    : getServiceAuthToken() ?? (await readAuthTokenCookie())
   const normalizedAuthToken =
     authToken && authToken.split(".").length === 3 ? authToken : undefined
   const requestHeaders = new Headers(headers)
