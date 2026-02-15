@@ -22,6 +22,8 @@ The same routes are also mounted under `/orders/*` for compatibility with the ga
 | `ORDER_RESERVATION_TTL_SECONDS` | Optional TTL passed to inventory reservation events. |
 | `ORDER_EVENTS_EXCHANGE` | RabbitMQ exchange for `orders.*` events (default `orders.events`). |
 | `ORDER_EVENTS_QUEUE` | RabbitMQ queue name for the outbox publisher (default `orders.events.publisher`). |
+| `INVENTORY_EVENTS_EXCHANGE` | RabbitMQ exchange for inventory outcomes (default `inventory.events`). |
+| `ORDERS_INVENTORY_EVENTS_QUEUE` | RabbitMQ queue used by the orders inventory consumer (default `orders.inventory-events`). |
 | `IAM_SERVICE_URL`, `AUTH_JWKS_URL`, `AUTH_JWT_ISSUER`, `AUTH_JWT_AUDIENCE`, `AUTH_DEV_USER_HEADER` | Standard auth settings consumed via `@ecommerce/core`. |
 
 Run the service with:
@@ -34,4 +36,10 @@ Run the outbox publisher worker with:
 
 ```bash
 pnpm --filter @ecommerce/orders-svc worker:outbox
+```
+
+Run the inventory outcomes consumer with:
+
+```bash
+pnpm --filter @ecommerce/orders-svc worker:inventory
 ```

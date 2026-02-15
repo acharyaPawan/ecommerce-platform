@@ -71,10 +71,16 @@ export const createOrdersRouter = ({ config }: OrdersRouterDeps): Hono => {
     const orderId = c.req.param("orderId")?.trim();
     logger.debug({ orderId }, "orders.get.started");
 
-    const auth = await authenticate(c, authenticateRequest);
-    if (auth.response) {
-      logger.warn({ orderId }, "orders.get.authentication_failed");
-      return auth.response;
+    let authUser: VerifiedAuthTokenPayload | null = null;
+    if (!config.allowPublicRead) {
+      const auth = await authenticate(c, authenticateRequest);
+      if (auth.response) {
+        logger.warn({ orderId }, "orders.get.authentication_failed");
+        return auth.response;
+      }
+      authUser = auth.user;
+    } else {
+      authUser = await authenticateRequest(c.req.raw, { optional: true });
     }
 
     if (!orderId) {
@@ -88,13 +94,13 @@ export const createOrdersRouter = ({ config }: OrdersRouterDeps): Hono => {
       return c.json({ error: "Order not found" }, 404);
     }
 
-    const isAdmin = auth.user.roles.includes("admin");
-    if (!isAdmin && record.userId && record.userId !== auth.user.userId) {
-      logger.warn({ orderId, userId: auth.user.userId, recordUserId: record.userId }, "orders.get.forbidden");
+    const isAdmin = authUser?.roles.includes("admin") ?? false;
+    if (!config.allowPublicRead && authUser && !isAdmin && record.userId && record.userId !== authUser.userId) {
+      logger.warn({ orderId, userId: authUser.userId, recordUserId: record.userId }, "orders.get.forbidden");
       return c.json({ error: "forbidden" }, 403);
     }
 
-    logger.info({ orderId, userId: auth.user.userId }, "orders.get.success");
+    logger.info({ orderId, userId: authUser?.userId ?? null }, "orders.get.success");
     return c.json(serializeOrder(record));
   });
 
@@ -253,9 +259,16 @@ const createRequestAuthenticator = (options: VerifyAuthTokenOptions): RequestAut
       return await verifyAuthToken(token, options);
     } catch (error) {
       if (error instanceof AuthorizationError) {
+        if (authOptions.optional) {
+          logger.warn({ status: error.status, message: error.message }, "orders.auth.optional_token_ignored");
+          return null;
+        }
         throw error;
       }
       logger.warn({ err: error }, "orders.auth.token_verification_failed");
+      if (authOptions.optional) {
+        return null;
+      }
       throw new AuthorizationError("Invalid authentication token", 401);
     }
   };

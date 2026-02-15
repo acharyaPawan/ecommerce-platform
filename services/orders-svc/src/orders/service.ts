@@ -2,19 +2,31 @@ import { Buffer } from "node:buffer";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import db from "../db/index.js";
-import { orderIdempotencyKeys, orders, ordersOutboxEvents } from "../db/schema.js";
+import {
+  orderIdempotencyKeys,
+  orders,
+  ordersOutboxEvents,
+  ordersProcessedMessages,
+} from "../db/schema.js";
 import type { CartSnapshotPayload } from "./schemas.js";
 import { OrderEventType, makeOrderEnvelope } from "./events.js";
 import { mapOrderEventToOutboxRecord } from "./outbox.js";
 
 const CREATE_ORDER_OPERATION = "orders.create";
+export const ORDER_STATUS = {
+  PendingInventory: "pending_inventory",
+  Confirmed: "confirmed",
+  Rejected: "rejected",
+  Canceled: "canceled",
+} as const;
+type OrderStatus = (typeof ORDER_STATUS)[keyof typeof ORDER_STATUS];
 
 type TransactionClient = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type OrderRow = typeof orders.$inferSelect;
 
 export type OrderRecord = {
   id: string;
-  status: string;
+  status: OrderStatus;
   currency: string;
   userId: string | null;
   cartSnapshot: CartSnapshotPayload;
@@ -63,7 +75,7 @@ export async function createOrder(
 
     await tx.insert(orders).values({
       id: orderId,
-      status: "pending",
+      status: ORDER_STATUS.PendingInventory,
       currency: snapshot.currency.toUpperCase(),
       userId: snapshot.userId ?? null,
       cartSnapshot: snapshot,
@@ -132,14 +144,14 @@ export async function cancelOrder(
     if (!record) {
       return { status: "not_found" } as const;
     }
-    if (record.status === "canceled") {
+    if (record.status === ORDER_STATUS.Canceled || record.status === ORDER_STATUS.Rejected) {
       return { status: "already_finalized", order: mapOrder(record) } as const;
     }
 
     await tx
       .update(orders)
       .set({
-        status: "canceled",
+        status: ORDER_STATUS.Canceled,
         cancellationReason: reason ?? null,
         canceledAt: now,
         updatedAt: now,
@@ -169,6 +181,68 @@ export async function cancelOrder(
       status: "canceled",
       order: mapOrder(updated ?? record),
     } as const;
+  });
+}
+
+export type InventoryReservedInput = {
+  orderId: string;
+  messageId: string;
+  source: string;
+};
+
+export async function markOrderInventoryReserved(
+  input: InventoryReservedInput
+): Promise<"updated" | "ignored"> {
+  const now = new Date();
+
+  return db.transaction(async (tx) => {
+    const claimed = await claimMessage(tx, input.messageId, input.source, now);
+    if (!claimed) {
+      return "ignored";
+    }
+
+    const updated = await tx
+      .update(orders)
+      .set({
+        status: ORDER_STATUS.Confirmed,
+        updatedAt: now,
+      })
+      .where(and(eq(orders.id, input.orderId), eq(orders.status, ORDER_STATUS.PendingInventory)))
+      .returning({ id: orders.id });
+
+    return updated.length > 0 ? "updated" : "ignored";
+  });
+}
+
+export type InventoryReservationFailedInput = {
+  orderId: string;
+  reason: string;
+  messageId: string;
+  source: string;
+};
+
+export async function markOrderInventoryReservationFailed(
+  input: InventoryReservationFailedInput
+): Promise<"updated" | "ignored"> {
+  const now = new Date();
+
+  return db.transaction(async (tx) => {
+    const claimed = await claimMessage(tx, input.messageId, input.source, now);
+    if (!claimed) {
+      return "ignored";
+    }
+
+    const updated = await tx
+      .update(orders)
+      .set({
+        status: ORDER_STATUS.Rejected,
+        cancellationReason: `inventory:${input.reason}`,
+        updatedAt: now,
+      })
+      .where(and(eq(orders.id, input.orderId), eq(orders.status, ORDER_STATUS.PendingInventory)))
+      .returning({ id: orders.id });
+
+    return updated.length > 0 ? "updated" : "ignored";
   });
 }
 
@@ -234,6 +308,27 @@ async function markIdempotencyRecordCompleted(
     .where(and(eq(orderIdempotencyKeys.key, key), eq(orderIdempotencyKeys.operation, operation)));
 }
 
+async function claimMessage(
+  tx: TransactionClient,
+  messageId: string,
+  source: string,
+  now: Date
+): Promise<boolean> {
+  const inserted = await tx
+    .insert(ordersProcessedMessages)
+    .values({
+      messageId,
+      source,
+      processedAt: now,
+    })
+    .onConflictDoNothing({
+      target: [ordersProcessedMessages.messageId],
+    })
+    .returning({ messageId: ordersProcessedMessages.messageId });
+
+  return inserted.length > 0;
+}
+
 function verifySnapshotSignature(snapshot: CartSnapshotPayload, secret: string): boolean {
   const { signature, ...rest } = snapshot;
   if (!signature) {
@@ -259,7 +354,7 @@ function verifySnapshotSignature(snapshot: CartSnapshotPayload, secret: string):
 function mapOrder(row: OrderRow): OrderRecord {
   return {
     id: row.id,
-    status: row.status,
+    status: row.status as OrderStatus,
     currency: row.currency,
     userId: row.userId ?? null,
     cartSnapshot: row.cartSnapshot as CartSnapshotPayload,

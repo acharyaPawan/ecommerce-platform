@@ -13,6 +13,7 @@
     "dev:services": "pnpm run dev",
     "db:push": "pnpm exec drizzle-kit push",
     "worker:outbox": "tsx --import=./dist/instrumentation.js src/workers/run-orders-outbox-publisher.ts",
+    "worker:inventory": "tsx --import=./dist/instrumentation.js src/workers/run-order-inventory-events-consumer.ts",
     "test": "vitest run"
   },
   "dependencies": {

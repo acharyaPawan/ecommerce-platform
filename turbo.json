@@ -61,6 +61,10 @@
       "cache": false,
       "persistent": true
     },
+    "worker:inventory": {
+      "cache": false,
+      "persistent": true
+    },
     "clean": {
       "cache": false
     }

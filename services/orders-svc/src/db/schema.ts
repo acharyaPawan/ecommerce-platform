@@ -1,4 +1,4 @@
-import { pgSchema, pgTable, text, timestamp, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgSchema, text, timestamp, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 
 export const ordersSchema = pgSchema("orders");
 
@@ -45,4 +45,10 @@ export const ordersOutboxEvents = ordersSchema.table("orders_outbox_events", {
   publishedAt: timestamp("published_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const ordersProcessedMessages = ordersSchema.table("processed_messages", {
+  messageId: text("message_id").primaryKey(),
+  source: text("source").notNull(),
+  processedAt: timestamp("processed_at", { withTimezone: true }).defaultNow().notNull(),
 });

@@ -82,6 +82,12 @@ This document maps the async messaging flows that exist in the repo today: who e
 - Event types (`services/orders-svc/src/orders/events.ts`), emitted in `services/orders-svc/src/orders/service.ts`:
   - `orders.order_placed.v1` on successful order creation.
   - `orders.order_canceled.v1` on cancellation.
+- Consumer: `OrderInventoryEventsConsumer` (`services/orders-svc/src/workers/order-inventory-events-consumer.ts`).
+  - Exchange: `INVENTORY_EVENTS_EXCHANGE` (default `inventory.events`).
+  - Queue: `ORDERS_INVENTORY_EVENTS_QUEUE` (default `orders.inventory-events`).
+  - Consumes:
+    - `inventory.stock.reserved.v1` -> mark order `confirmed`.
+    - `inventory.stock.reservation_failed.v1` -> mark order `rejected`.
 
 ### Payments service (`services/payments-svc`)
 
@@ -108,7 +114,8 @@ This document maps the async messaging flows that exist in the repo today: who e
 3. Inventory consumes `orders.order_placed.v1` and reserves stock, emitting `inventory.stock.reserved.v1` or `inventory.stock.reservation_failed.v1`.
 4. Payments publishes `payments.payment_authorized.v1` or `payments.payment_failed.v1` to the same exchange.
 5. Inventory consumes payment   events to commit or release reservations and emits `inventory.stock.committed.v1` or `inventory.stock.reservation_released.v1`.
-6. Downstream services (fulfillment, notifications, reporting) would subscribe to inventory events. A fulfillment HTTP service now exists, but event-driven consumers for inventory events are still not implemented in this repo.
+6. Orders consumes inventory reservation outcomes and updates order state (`pending_inventory` -> `confirmed`/`rejected`).
+7. Downstream services (fulfillment, notifications, reporting) would subscribe to inventory events. A fulfillment HTTP service now exists, but event-driven consumers for inventory events are still sparse in this repo.
 
 ## Coupling points and where it clicks
 
@@ -123,4 +130,4 @@ This document maps the async messaging flows that exist in the repo today: who e
 
 - Catalog emits only `ProductCreatedV1` today; other event types are defined but unused.
 - IAM docs mention an `AccessSynchronized` outbox event, but no such event exists in code.
-- No consumers for catalog or inventory events are present; add them where fulfillment read models, notifications, or reporting are needed.
+- Catalog events still have no consumers in this repo; add them where fulfillment read models, notifications, or reporting are needed.

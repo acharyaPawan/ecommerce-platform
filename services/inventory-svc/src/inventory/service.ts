@@ -90,8 +90,12 @@ type ReleaseResult =
   | { status: "duplicate" };
 
 export async function getInventorySummary(sku: string): Promise<InventorySummary | null> {
+  const normalizedSku = normalizeSku(sku);
+  if (!normalizedSku) {
+    return null;
+  }
   const record = await db.query.inventoryBalance.findFirst({
-    where: eq(inventoryBalance.sku, sku),
+    where: eq(inventoryBalance.sku, normalizedSku),
   });
 
   if (!record) {
@@ -110,7 +114,7 @@ export async function getInventorySummary(sku: string): Promise<InventorySummary
 }
 
 export async function adjustStock(input: AdjustmentInput, options: DomainOptions = {}): Promise<AdjustmentResult> {
-  const normalizedSku = input.sku.trim();
+  const normalizedSku = normalizeSku(input.sku);
   if (!normalizedSku) {
     throw new Error("SKU is required");
   }
@@ -590,7 +594,7 @@ function normalizeItems(items: ReservableItems): ReservableItems {
   const aggregates = new Map<string, number>();
 
   for (const item of items) {
-    const sku = item.sku.trim();
+    const sku = normalizeSku(item.sku);
     if (!sku || item.qty <= 0) {
       continue;
     }
@@ -600,6 +604,10 @@ function normalizeItems(items: ReservableItems): ReservableItems {
   }
 
   return Array.from(aggregates.entries()).map(([sku, qty]) => ({ sku, qty }));
+}
+
+function normalizeSku(sku: string): string {
+  return sku.trim().toUpperCase();
 }
 
 function resolveTtl(ttlSeconds?: number): number {
