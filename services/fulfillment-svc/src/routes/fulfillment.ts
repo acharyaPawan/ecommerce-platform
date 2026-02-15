@@ -38,7 +38,11 @@ export const createFulfillmentRouter = ({ service, config }: RouterDeps): Hono =
     }
 
     await authenticateRequest(c.req.raw, { optional: true });
-    return c.json(service.getShipment(orderId));
+    const shipment = await service.getShipment(orderId);
+    if (!shipment) {
+      return c.json({ error: "Shipment not found" }, 404);
+    }
+    return c.json(shipment);
   });
 
   router.post("/shipments", async (c) => {
@@ -52,10 +56,12 @@ export const createFulfillmentRouter = ({ service, config }: RouterDeps): Hono =
       return c.json({ error: "Validation failed", details: parsed.error.flatten() }, 422);
     }
 
-    await authenticateRequest(c.req.raw, { optional: true });
+    if (!hasValidInternalSecret(c.req.raw, config.internalServiceSecret)) {
+      await authenticateRequest(c.req.raw);
+    }
     return c.json(
       {
-        shipment: service.getShipment(parsed.data.orderId),
+        shipment: await service.createShipment(parsed.data.orderId),
       },
       201
     );
@@ -133,3 +139,8 @@ const createRequestAuthenticator = (config: FulfillmentServiceConfig): RequestAu
     }
   };
 };
+
+function hasValidInternalSecret(request: Request, expectedSecret: string): boolean {
+  const value = request.headers.get("x-internal-service-secret")?.trim();
+  return Boolean(value && expectedSecret && value === expectedSecret);
+}

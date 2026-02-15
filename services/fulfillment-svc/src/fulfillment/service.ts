@@ -1,5 +1,8 @@
 import type { FulfillmentServiceConfig } from "../config.js";
+import db from "../db/index.js";
+import { shipments } from "../db/schema.js";
 import type { ShipmentView, ShippingOption } from "./types.js";
+import { eq } from "drizzle-orm";
 
 const STANDARD_DELIVERY_DAYS = 5;
 const EXPRESS_DELIVERY_DAYS = 2;
@@ -41,9 +44,61 @@ export class FulfillmentService {
     };
   }
 
-  getShipment(orderId: string): ShipmentView {
+  async getShipment(orderId: string): Promise<ShipmentView | null> {
     const normalizedOrderId = orderId.trim();
-    return this.buildShipment(normalizedOrderId);
+    const [shipment] = await db
+      .select()
+      .from(shipments)
+      .where(eq(shipments.orderId, normalizedOrderId))
+      .limit(1);
+    return shipment ? mapShipment(shipment) : null;
+  }
+
+  async createShipment(orderId: string): Promise<ShipmentView> {
+    const normalizedOrderId = orderId.trim();
+    const [existing] = await db
+      .select()
+      .from(shipments)
+      .where(eq(shipments.orderId, normalizedOrderId))
+      .limit(1);
+    if (existing) {
+      return mapShipment(existing);
+    }
+
+    const created = this.buildShipment(normalizedOrderId);
+    const now = new Date();
+
+    const [inserted] = await db
+      .insert(shipments)
+      .values({
+        id: created.shipmentId,
+        orderId: created.orderId,
+        status: created.status,
+        carrier: created.carrier,
+        trackingNumber: created.trackingNumber,
+        trackingUrl: created.trackingUrl,
+        shippedAt: new Date(created.shippedAt),
+        deliveredAt: new Date(created.deliveredAt),
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoNothing({ target: [shipments.orderId] })
+      .returning();
+
+    if (inserted) {
+      return mapShipment(inserted);
+    }
+
+    const [conflictExisting] = await db
+      .select()
+      .from(shipments)
+      .where(eq(shipments.orderId, normalizedOrderId))
+      .limit(1);
+    if (conflictExisting) {
+      return mapShipment(conflictExisting);
+    }
+
+    return created;
   }
 
   private buildShipment(orderId: string): ShipmentView {
@@ -65,6 +120,21 @@ export class FulfillmentService {
       deliveredAt: deliveredAt.toISOString(),
     };
   }
+}
+
+type ShipmentRow = typeof shipments.$inferSelect;
+
+function mapShipment(record: ShipmentRow): ShipmentView {
+  return {
+    shipmentId: record.id,
+    orderId: record.orderId,
+    status: "fulfilled",
+    carrier: record.carrier,
+    trackingNumber: record.trackingNumber,
+    trackingUrl: record.trackingUrl,
+    shippedAt: record.shippedAt.toISOString(),
+    deliveredAt: record.deliveredAt.toISOString(),
+  };
 }
 
 function normalizeCountry(country: string | undefined, fallback: string): string {

@@ -420,9 +420,15 @@ importers:
       dotenv:
         specifier: ^17.2.3
         version: 17.2.3
+      drizzle-orm:
+        specifier: ^0.44.7
+        version: 0.44.7(@neondatabase/serverless@1.0.2)(@opentelemetry/api@1.9.0)(@types/pg@8.16.0)(kysely@0.28.8)(pg@8.16.3)
       hono:
         specifier: ^4.10.4
         version: 4.10.4
+      pg:
+        specifier: ^8.16.3
+        version: 8.16.3
       zod:
         specifier: ^3.23.8
         version: 3.25.76
@@ -430,6 +436,12 @@ importers:
       '@types/node':
         specifier: ^20.19.24
         version: 20.19.24
+      '@types/pg':
+        specifier: ^8.15.9
+        version: 8.16.0
+      drizzle-kit:
+        specifier: ^0.31.6
+        version: 0.31.8
       tsx:
         specifier: ^4.20.6
         version: 4.21.0

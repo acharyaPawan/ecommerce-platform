@@ -22,15 +22,9 @@ describe("fulfillment-svc", () => {
         expect(payload.options[0].serviceLevel).toBe("standard");
         expect(payload.options[1].serviceLevel).toBe("express");
     });
-    it("returns fulfilled shipment for any order", async () => {
+    it("returns not found when shipment has not been created", async () => {
         const app = createApp({ config: TEST_CONFIG });
         const response = await app.request("/api/fulfillment/shipments?orderId=ord_12345");
-        expect(response.status).toBe(200);
-        const payload = await response.json();
-        expect(payload.orderId).toBe("ord_12345");
-        expect(payload.status).toBe("fulfilled");
-        expect(typeof payload.shipmentId).toBe("string");
-        expect(typeof payload.trackingNumber).toBe("string");
-        expect(typeof payload.trackingUrl).toBe("string");
+        expect(response.status).toBe(404);
     });
 });

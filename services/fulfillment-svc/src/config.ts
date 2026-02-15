@@ -5,6 +5,7 @@ export type FulfillmentServiceConfig = {
   port: number;
   defaultCurrency: string;
   defaultCountry: string;
+  internalServiceSecret: string;
   auth: AuthConfig;
 };
 
@@ -14,6 +15,7 @@ export function loadConfig(): FulfillmentServiceConfig {
     port: parseNumber(process.env.PORT, 3009),
     defaultCurrency: (process.env.DEFAULT_CURRENCY ?? "USD").toUpperCase(),
     defaultCountry: (process.env.FULFILLMENT_DEFAULT_COUNTRY ?? "US").toUpperCase(),
+    internalServiceSecret: process.env.INTERNAL_SERVICE_SECRET ?? "dev-internal-secret",
     auth: loadAuthConfig({
       deriveJwksFromIam: {
         iamUrl: process.env.IAM_SERVICE_URL,
