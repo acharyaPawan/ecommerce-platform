@@ -9,14 +9,12 @@ import {
   removeCartItem,
   updateCartItem,
 } from "@/lib/server/cart-client"
-import { createShipment } from "@/lib/server/fulfillment-client"
 import { getCartId, setCartId } from "@/lib/server/cart-session"
 import { withServiceAuthFromRequest } from "@/lib/server/service-auth"
 import type {
   CartActionState,
   CheckoutActionState,
 } from "@/app/actions/cart-action-state"
-import logger from "@/lib/server/logger"
 
 export async function addToCartAction(
   _prev: CartActionState,
@@ -141,16 +139,6 @@ export async function checkoutCartAction(
     orderId = result.result.orderId
     revalidatePath("/", "layout")
     revalidatePath("/cart")
-
-    if (orderId) {
-      const confirmedOrderId = orderId
-      const shipment = await withServiceAuthFromRequest(async () =>
-        createShipment(confirmedOrderId)
-      )
-      if (!shipment) {
-        logger.warn({ orderId: confirmedOrderId }, "checkout.fulfillment_shipment_not_created")
-      }
-    }
   } catch (error) {
     return {
       status: "error",

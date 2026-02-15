@@ -51,7 +51,7 @@ export function loadConfig(): ServiceConfig {
       DEFAULT_CATALOG_TIMEOUT_MS
     ),
     ordersServiceUrl: process.env.ORDERS_SERVICE_URL ?? "http://localhost:3005",
-    ordersServiceTimeoutMs: parseNumber(process.env.ORDERS_SERVICE_TIMEOUT_MS, 10000),
+    ordersServiceTimeoutMs: parseNumber(process.env.ORDERS_SERVICE_TIMEOUT_MS, 30000),
     auth: loadAuthConfig({
       deriveJwksFromIam: {
         iamUrl: process.env.IAM_SERVICE_URL,
