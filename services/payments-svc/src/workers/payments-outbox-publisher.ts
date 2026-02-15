@@ -9,7 +9,7 @@ import logger from "../logger.js";
 type PaymentsOutboxRecord = typeof paymentsOutboxEvents.$inferSelect;
 
 const DEFAULT_BATCH_SIZE = 25;
-const DEFAULT_POLL_INTERVAL_MS = 1000;
+const DEFAULT_POLL_INTERVAL_MS = 40_000;
 const WORKER_NAME = "[payments-outbox-worker]";
 
 export interface WorkerOptions {
@@ -37,7 +37,14 @@ export class PaymentsOutboxPublisherWorker {
     );
 
     while (!this.stopped) {
-      const published = await this.publishNextBatch();
+      let published = 0;
+      try {
+        published = await this.publishNextBatch();
+      } catch (error) {
+        logger.error({ err: error }, `${WORKER_NAME} batch_failed_retrying`);
+        await this.waitForRetryAfterError();
+        continue;
+      }
       if (this.stopped) {
         break;
       }
@@ -144,6 +151,18 @@ export class PaymentsOutboxPublisherWorker {
         this.delayTimer = null;
         resolve();
       }, this.options.pollIntervalMs);
+    });
+  }
+
+  private async waitForRetryAfterError(): Promise<void> {
+    const retryDelayMs = Math.min(Math.max(this.options.pollIntervalMs, 5_000), 15_000);
+    await new Promise<void>((resolve) => {
+      this.delayResolve = resolve;
+      this.delayTimer = setTimeout(() => {
+        this.delayResolve = null;
+        this.delayTimer = null;
+        resolve();
+      }, retryDelayMs);
     });
   }
 }
