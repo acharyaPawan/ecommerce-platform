@@ -68,6 +68,46 @@ export const createPaymentsRouter = ({ config }: PaymentsRouterDeps): Hono => {
     }
   });
 
+  router.post("/internal/authorize-and-capture", async (c) => {
+    const internalSecret = c.req.header("x-internal-service-secret")?.trim();
+    if (!internalSecret || internalSecret !== config.internalServiceSecret) {
+      return c.json({ error: "forbidden" }, 403);
+    }
+
+    const body = await readJson(c);
+    if (!body.success) {
+      return c.json({ error: body.error }, 400);
+    }
+
+    const parsed = internalAuthorizeAndCaptureSchema.safeParse(body.data);
+    if (!parsed.success) {
+      return c.json({ error: "Validation failed", details: parsed.error.flatten() }, 422);
+    }
+
+    const { orderId, amountCents, currency, correlationId } = parsed.data;
+    const authorizeResult = await authorizePayment(
+      { orderId, amountCents, currency },
+      {
+        idempotencyKey: `order:${orderId}:authorize`,
+        correlationId: correlationId ?? undefined,
+      }
+    );
+
+    const captureResult = await capturePayment(authorizeResult.paymentId, {
+      correlationId: correlationId ?? undefined,
+    });
+
+    if (captureResult.status === "not_found") {
+      return c.json({ error: "Payment not found after authorization" }, 500);
+    }
+
+    return c.json({
+      paymentId: authorizeResult.paymentId,
+      status: captureResult.payment.status,
+      payment: serializePayment(captureResult.payment),
+    });
+  });
+
   router.post("/:paymentId/fail", async (c) => {
     const auth = await authenticate(c, authenticateRequest);
     if (auth.response) {
@@ -127,9 +167,11 @@ export const createPaymentsRouter = ({ config }: PaymentsRouterDeps): Hono => {
   });
 
   router.get("/", async (c) => {
-    const auth = await authenticate(c, authenticateRequest);
-    if (auth.response) {
-      return auth.response;
+    if (!config.allowPublicRead) {
+      const auth = await authenticate(c, authenticateRequest);
+      if (auth.response) {
+        return auth.response;
+      }
     }
 
     const orderId = c.req.query("orderId")?.trim();
@@ -149,6 +191,13 @@ const authorizePaymentSchema = z.object({
 
 const failPaymentSchema = z.object({
   reason: z.string().trim().min(1).optional(),
+});
+
+const internalAuthorizeAndCaptureSchema = z.object({
+  orderId: z.string().trim().min(1),
+  amountCents: z.number().int().nonnegative(),
+  currency: z.string().trim().length(3),
+  correlationId: z.string().trim().min(1).optional(),
 });
 
 type JsonResult =
