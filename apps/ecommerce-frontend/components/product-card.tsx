@@ -1,3 +1,6 @@
+"use client"
+
+import { useState } from "react"
 import Link from "next/link"
 
 import { AddToCartForm } from "@/components/cart/add-to-cart-form"
@@ -13,6 +16,7 @@ export function ProductCard({ product }: { product: CatalogProduct }) {
   const primaryVariant = getPrimaryVariant(product)
   const primaryPrice = getPrimaryPrice(primaryVariant)
   const heroImage = getProductImage(product)
+  const [showImage, setShowImage] = useState(Boolean(heroImage))
 
   return (
     <div className="group surface flex h-full flex-col overflow-hidden">
@@ -20,12 +24,16 @@ export function ProductCard({ product }: { product: CatalogProduct }) {
         href={`/products/${product.id}`}
         className="relative block h-48 overflow-hidden"
       >
-        {heroImage ? (
+        {showImage && heroImage ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={heroImage}
             alt={product.title}
             className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+            loading="lazy"
+            onError={() => {
+              setShowImage(false)
+            }}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_top,var(--glow),transparent_70%)]">

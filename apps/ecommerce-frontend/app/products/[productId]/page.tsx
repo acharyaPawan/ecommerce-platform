@@ -40,6 +40,7 @@ export default async function ProductPage({ params }: PageProps) {
               src={heroImage}
               alt={product.title}
               className="h-full w-full object-cover"
+              loading="lazy"
             />
           ) : (
             <div className="flex h-80 items-center justify-center bg-[radial-gradient(circle_at_top,var(--glow),transparent_70%)] text-sm text-muted">

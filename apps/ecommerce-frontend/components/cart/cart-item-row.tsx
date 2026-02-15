@@ -7,8 +7,10 @@ import {
 import { SubmitButton } from "@/components/ui/submit-button"
 import { formatCurrency } from "@/lib/format"
 import type { CartViewItem } from "@/lib/server/cart-view"
+import { getUsableImageUrl } from "@/lib/utils/catalog"
 
 export function CartItemRow({ item }: { item: CartViewItem }) {
+  const imageUrl = getUsableImageUrl(item.imageUrl)
   const priceCents =
     item.priceCents !== null && item.priceCents !== undefined
       ? item.priceCents
@@ -32,12 +34,13 @@ export function CartItemRow({ item }: { item: CartViewItem }) {
     <div className="surface flex flex-col gap-4 p-4 md:flex-row md:items-center">
       <div className="flex items-center gap-4">
         <div className="h-20 w-20 overflow-hidden rounded-2xl bg-[color:var(--surface-strong)]">
-          {item.imageUrl ? (
+          {imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={item.imageUrl}
+              src={imageUrl}
               alt={item.title}
               className="h-full w-full object-cover"
+              loading="lazy"
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-xs text-muted">

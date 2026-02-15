@@ -1,4 +1,9 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
+@source "../app";
+@source "../components";
+@source "../lib";
+@source "../providers";
+@source "../node_modules/@daveyplate/better-auth-ui/dist";
 
 :root {
   --font-display: "Iowan Old Style", "Palatino", "Garamond", "Times New Roman",
