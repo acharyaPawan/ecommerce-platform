@@ -2,7 +2,7 @@
 
 import Image from "next/image"
 import * as React from "react"
-import { useFormState } from "react-dom"
+import { useFormStatus } from "react-dom"
 
 import {
   createCatalogProductAction,
@@ -1043,11 +1043,25 @@ function CatalogProductCreator() {
               {state.message}
             </p>
           ) : null}
-          <Button type="submit" className="w-full" variant="secondary">
-            Create product
-          </Button>
+          <CreateProductSubmitButton />
         </form>
       </CardContent>
     </Card>
+  )
+}
+
+function CreateProductSubmitButton() {
+  const { pending } = useFormStatus()
+
+  return (
+    <Button
+      type="submit"
+      className="w-full"
+      variant="secondary"
+      disabled={pending}
+      aria-busy={pending}
+    >
+      {pending ? "Creating product..." : "Create product"}
+    </Button>
   )
 }
