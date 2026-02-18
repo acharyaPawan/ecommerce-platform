@@ -113,6 +113,38 @@ export async function getInventorySummary(sku: string): Promise<InventorySummary
   };
 }
 
+export async function getInventorySummaries(skus: string[]): Promise<InventorySummary[]> {
+  const normalizedSkus = Array.from(
+    new Set(
+      skus
+        .map((sku) => normalizeSku(sku))
+        .filter((sku): sku is string => Boolean(sku))
+    )
+  );
+
+  if (normalizedSkus.length === 0) {
+    return [];
+  }
+
+  const records = await db
+    .select({
+      sku: inventoryBalance.sku,
+      onHand: inventoryBalance.onHand,
+      reserved: inventoryBalance.reserved,
+      updatedAt: inventoryBalance.updatedAt,
+    })
+    .from(inventoryBalance)
+    .where(inArray(inventoryBalance.sku, normalizedSkus));
+
+  return records.map((record) => ({
+    sku: record.sku,
+    onHand: record.onHand,
+    reserved: record.reserved,
+    available: record.onHand - record.reserved,
+    updatedAt: record.updatedAt instanceof Date ? record.updatedAt : new Date(record.updatedAt),
+  }));
+}
+
 export async function adjustStock(input: AdjustmentInput, options: DomainOptions = {}): Promise<AdjustmentResult> {
   const normalizedSku = normalizeSku(input.sku);
   if (!normalizedSku) {

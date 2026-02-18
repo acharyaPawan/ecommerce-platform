@@ -15,6 +15,7 @@ import {
   adjustStock,
   commitReservation,
   getInventorySummary,
+  getInventorySummaries,
   type InventorySummary,
   releaseReservation,
   reserveStock,
@@ -30,6 +31,57 @@ export const createInventoryApi = ({ auth }: InventoryRouterDeps): Hono => {
   const verifyOptions = resolveVerifyAuthTokenOptions(auth);
   const authenticateRequest = createRequestAuthenticator(verifyOptions);
 
+  router.post("/summaries", async (c) => {
+    const authResponse = await enforceAuthorization(c, authenticateRequest);
+    if (authResponse) {
+      return authResponse;
+    }
+
+    const body = await readJson(c);
+    if (!body.success) {
+      return c.json({ error: body.error }, 400);
+    }
+
+    const parsed = summariesSchema.safeParse(body.data);
+    if (!parsed.success) {
+      return c.json({ error: "Validation failed", details: parsed.error.flatten() }, 422);
+    }
+
+    try {
+      const startedAt = Date.now();
+      const requestedSkus = parsed.data.skus.map((sku) => sku.trim()).filter(Boolean);
+      const uniqueRequested = new Set(requestedSkus.map((sku) => sku.toUpperCase())).size;
+      const summaries = await getInventorySummaries(requestedSkus);
+      const foundSet = new Set(summaries.map((summary) => summary.sku));
+      const missing = Array.from(
+        new Set(
+          requestedSkus
+            .map((sku) => sku.trim().toUpperCase())
+            .filter((sku) => sku && !foundSet.has(sku))
+        )
+      );
+
+      logger.debug(
+        {
+          requested: requestedSkus.length,
+          uniqueRequested,
+          found: summaries.length,
+          missing: missing.length,
+          durationMs: Date.now() - startedAt,
+        },
+        "inventory.summaries.resolved"
+      );
+
+      return c.json({
+        items: summaries.map(serializeSummary),
+        missing,
+      });
+    } catch (error) {
+      logger.error({ err: error }, "[inventory] failed to load summaries");
+      return c.json({ error: "Failed to load inventory summaries" }, 500);
+    }
+  });
+
   router.get("/:sku", async (c) => {
     const authResponse = await enforceAuthorization(c, authenticateRequest);
     if (authResponse) {
@@ -44,6 +96,7 @@ export const createInventoryApi = ({ auth }: InventoryRouterDeps): Hono => {
     try {
       const summary = await getInventorySummary(sku);
       if (!summary) {
+        logger.debug({ sku: sku.toUpperCase() }, "inventory.summary.missing");
         return c.json({ error: "SKU not found" }, 404);
       }
 
@@ -218,6 +271,10 @@ const adjustmentSchema = z.object({
 const reservationItemSchema = z.object({
   sku: z.string().min(1),
   qty: z.number().int().positive(),
+});
+
+const summariesSchema = z.object({
+  skus: z.array(z.string().min(1)).max(500),
 });
 
 const reservationSchema = z.object({
