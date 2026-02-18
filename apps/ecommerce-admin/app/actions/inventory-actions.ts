@@ -6,7 +6,7 @@ import {
   adjustInventory,
   commitInventoryReservation,
   createInventoryReservation,
-  getInventorySummary,
+  getInventorySummaries,
   releaseInventoryReservation,
 } from "@/lib/server/inventory-client"
 import { listCatalogProducts } from "@/lib/server/catalog-client"
@@ -14,6 +14,7 @@ import type { InventorySummary } from "@/lib/types/inventory"
 import type { CatalogProductStatus } from "@/lib/types/catalog"
 import { getServiceAuthTokenFromRequest } from "@/lib/server/service-auth"
 import { withServiceAuthToken } from "@/lib/server/service-auth-context"
+import logger from "@/lib/server/logger"
 
 type BaseActionState = {
   status: "idle" | "success" | "error"
@@ -34,6 +35,7 @@ export type InventorySeedActionState = BaseActionState & {
 }
 
 const successResponse = <T extends BaseActionState>(payload: T): T => payload
+const INVENTORY_SEED_CONCURRENCY = 5
 
 const errorResponse = <T extends BaseActionState>(message: string): T =>
   ({
@@ -215,6 +217,7 @@ export async function seedInventoryFromCatalogAction(
   if (!token) return errorResponse("Authentication required.")
 
   return withServiceAuthToken(token, async () => {
+    const startedAt = Date.now()
     const countRaw = formData.get("count")?.toString() ?? "50"
     const status = parseStatus(formData.get("status")?.toString())
     const qtyRaw = formData.get("quantity")?.toString() ?? "0"
@@ -246,32 +249,80 @@ export async function seedInventoryFromCatalogAction(
     let processed = 0
     let skipped = 0
     const errors: string[] = []
+    const variants = products.flatMap((product) =>
+      product.variants.map((variant) => ({
+        productId: product.id,
+        sku: variant.sku,
+      }))
+    )
 
-    for (const product of products) {
-      for (const variant of product.variants) {
-        try {
-          const summary = await getInventorySummary(variant.sku)
-          if (
-            onlyMissing &&
-            summary &&
-            (summary.onHand > 0 || summary.reserved > 0)
-          ) {
-            skipped += 1
-            continue
-          }
+    logger.debug(
+      {
+        products: products.length,
+        variants: variants.length,
+        onlyMissing,
+        qty,
+        status: status ?? "all",
+      },
+      "admin.inventory.seed.started"
+    )
 
-          await adjustInventory({
+    const summariesBySku = onlyMissing
+      ? await getInventorySummaries(variants.map((variant) => variant.sku))
+      : new Map<string, InventorySummary>()
+
+    const variantsToAdjust = variants.filter((variant) => {
+      if (!onlyMissing) {
+        return true
+      }
+
+      const summary = summariesBySku.get(variant.sku.trim().toUpperCase())
+      if (summary && (summary.onHand > 0 || summary.reserved > 0)) {
+        skipped += 1
+        return false
+      }
+      return true
+    })
+
+    for (let i = 0; i < variantsToAdjust.length; i += INVENTORY_SEED_CONCURRENCY) {
+      const batch = variantsToAdjust.slice(i, i + INVENTORY_SEED_CONCURRENCY)
+      const results = await Promise.allSettled(
+        batch.map((variant) =>
+          adjustInventory({
             sku: variant.sku,
             delta: qty,
             reason: "admin_seed",
-            referenceId: product.id,
+            referenceId: variant.productId,
           })
+        )
+      )
+
+      for (const result of results) {
+        if (result.status === "fulfilled") {
           processed += 1
-        } catch (error) {
-          errors.push(error instanceof Error ? error.message : "Unknown error")
+          continue
         }
+        errors.push(
+          result.reason instanceof Error
+            ? result.reason.message
+            : "Unknown error"
+        )
       }
     }
+
+    logger.debug(
+      {
+        products: products.length,
+        variants: variants.length,
+        queued: variantsToAdjust.length,
+        processed,
+        skipped,
+        errors: errors.length,
+        durationMs: Date.now() - startedAt,
+        concurrency: INVENTORY_SEED_CONCURRENCY,
+      },
+      "admin.inventory.seed.completed"
+    )
 
     revalidatePath("/")
     if (errors.length) {
