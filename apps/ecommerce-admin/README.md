@@ -1,4 +1,10 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## Ecommerce Admin
+
+Operational admin UI for catalog + inventory workflows in the ecommerce platform.
+
+## Core docs
+
+- Internal workflow details: `apps/ecommerce-admin/docs/internal-workflow.md`
 
 ## Getting Started
 
@@ -14,23 +20,17 @@ pnpm dev
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Key paths
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Page and dashboard UI: `apps/ecommerce-admin/app/page.tsx`, `apps/ecommerce-admin/components/inventory-dashboard.tsx`
+- Server actions: `apps/ecommerce-admin/app/actions/catalog-actions.ts`, `apps/ecommerce-admin/app/actions/inventory-actions.ts`
+- Service clients: `apps/ecommerce-admin/lib/server/catalog-client.ts`, `apps/ecommerce-admin/lib/server/inventory-client.ts`, `apps/ecommerce-admin/lib/server/service-client.ts`
+- Auth and route protection: `apps/ecommerce-admin/_proxy.ts`, `apps/ecommerce-admin/lib/server/service-auth.ts`, `apps/ecommerce-admin/lib/server/auth-client.ts`
 
-## Learn More
+## Inventory fetch behavior
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Dashboard inventory reads are batched through `POST /api/inventory/summaries` (inventory service) to avoid one request per SKU.
+- Missing inventory rows for some catalog SKUs are logged as debug (`inventory.summaries.partial` / `inventory.summary.missing`) instead of error in admin app logs.
+- Dashboard media URLs are validated against allowed Next image hosts; unsupported/invalid URLs are dropped with structured logs (`dashboard.media.*`) instead of crashing selected-item rendering.
