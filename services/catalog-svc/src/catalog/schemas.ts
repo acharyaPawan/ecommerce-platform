@@ -41,7 +41,19 @@ export const createProductSchema = z.object({
   variants: z.array(variantInputSchema).min(1),
 });
 
+export const updateProductSchema = z
+  .object({
+    title: z.string().min(1).optional(),
+    description: z.string().optional(),
+    brand: z.string().optional(),
+    status: z.enum(["draft", "published", "archived"]).optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, {
+    message: "At least one field must be provided",
+  });
+
 export type CreateProductInput = z.infer<typeof createProductSchema>;
+export type UpdateProductInput = z.infer<typeof updateProductSchema>;
 export type VariantInput = z.infer<typeof variantInputSchema>;
 export type PriceInput = z.infer<typeof priceInputSchema>;
 export type MediaInput = z.infer<typeof mediaInputSchema>;

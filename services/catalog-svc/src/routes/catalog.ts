@@ -11,8 +11,8 @@ import {
   type VerifyAuthTokenOptions,
 } from "@ecommerce/core";
 import { z } from "zod";
-import { createProduct } from "../catalog/service.js";
-import { createProductSchema } from "../catalog/schemas.js";
+import { createProduct, updateProduct } from "../catalog/service.js";
+import { createProductSchema, updateProductSchema } from "../catalog/schemas.js";
 import { getProduct, listProducts, quotePricing } from "../catalog/queries.js";
 import logger from "../logger.js";
 
@@ -112,7 +112,15 @@ export const createCatalogApi = ({ auth }: CatalogRouterDeps): Hono => {
     }
 
     try {
-      logger.debug({ title: parsed.data.title, status: parsed.data.status }, "catalog.products.create_processing");
+      logger.debug(
+        {
+          title: parsed.data.title,
+          status: parsed.data.status,
+          variantCount: parsed.data.variants.length,
+          skuCount: parsed.data.variants.length,
+        },
+        "catalog.products.create_processing"
+      );
       const result = await createProduct(parsed.data, {
         correlationId: c.req.header("x-request-id") ?? undefined,
         idempotencyKey: c.req.header("idempotency-key") ?? undefined,
@@ -131,8 +139,77 @@ export const createCatalogApi = ({ auth }: CatalogRouterDeps): Hono => {
         result.idempotent ? 200 : 201
       );
     } catch (error) {
+      if (isDuplicateSkuError(error)) {
+        const submittedSkus = parsed.data.variants.map((variant) => variant.sku);
+        logger.warn(
+          { submittedSkus, err: error },
+          "catalog.products.create_duplicate_sku"
+        );
+        return c.json(
+          { error: "SKU already exists. Please use a unique SKU." },
+          409
+        );
+      }
       logger.error({ err: error }, "catalog.products.create_failed");
       return c.json({ error: "Failed to create product" }, 500);
+    }
+  });
+
+  router.patch("/products/:productId", async (c) => {
+    const productId = c.req.param("productId");
+    logger.debug({ productId }, "catalog.products.update_requested");
+
+    const authResponse = await requireAdmin(c, authenticateRequest);
+    if (authResponse) {
+      return authResponse;
+    }
+
+    if (!productId?.trim()) {
+      logger.warn("catalog.products.update_invalid_id");
+      return c.json({ error: "Product ID is required" }, 400);
+    }
+
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch (error) {
+      logger.warn({ err: error, productId }, "catalog.products.update_invalid_json");
+      return c.json({ error: "Invalid JSON payload" }, 400);
+    }
+
+    const parsed = updateProductSchema.safeParse(body);
+    if (!parsed.success) {
+      logger.warn(
+        { productId, errors: parsed.error.flatten() },
+        "catalog.products.update_validation_failed"
+      );
+      return c.json({ error: "Validation failed", details: parsed.error.flatten() }, 422);
+    }
+
+    try {
+      const result = await updateProduct(productId, parsed.data, {
+        correlationId: c.req.header("x-request-id") ?? undefined,
+      });
+
+      if (result.status === "not_found") {
+        logger.warn({ productId }, "catalog.products.update_not_found");
+        return c.json({ error: "Product not found" }, 404);
+      }
+
+      const product = await getProduct(productId);
+      if (!product) {
+        logger.error({ productId }, "catalog.products.update_postread_not_found");
+        return c.json({ error: "Product not found after update" }, 500);
+      }
+
+      logger.debug(
+        { productId, updatedFields: Object.keys(result.updatedFields) },
+        "catalog.products.update_success"
+      );
+      return c.json(product);
+    } catch (error) {
+      logger.error({ err: error, productId }, "catalog.products.update_failed");
+      return c.json({ error: "Failed to update product" }, 500);
     }
   });
 
@@ -262,3 +339,24 @@ const pricingQuoteSchema = z.object({
     )
     .min(1),
 });
+
+function isDuplicateSkuError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const candidates: unknown[] = [error, (error as { cause?: unknown }).cause];
+  return candidates.some((entry) => {
+    if (!(entry instanceof Error)) {
+      return false;
+    }
+    const code = (entry as { code?: string }).code;
+    if (code === "23505") {
+      return true;
+    }
+    return (
+      entry.message.includes("variants_sku_idx") ||
+      entry.message.includes("duplicate key value violates unique constraint")
+    );
+  });
+}

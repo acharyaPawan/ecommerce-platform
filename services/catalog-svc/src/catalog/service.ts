@@ -11,7 +11,7 @@ import {
   products,
   variants,
 } from "../db/schema.js";
-import type { CreateProductInput } from "./schemas.js";
+import type { CreateProductInput, UpdateProductInput } from "./schemas.js";
 import { CatalogEventType, makeCatalogEnvelope } from "./events.js";
 import { mapCatalogEventToOutboxRecord } from "./outbox.js";
 
@@ -185,6 +185,87 @@ export async function createProduct(
     }
 
     return { productId, idempotent: false } satisfies CreateProductResult;
+  });
+
+  return result;
+}
+
+type UpdateProductOptions = {
+  correlationId?: string;
+  causationId?: string;
+};
+
+type UpdateProductResult =
+  | { status: "updated"; productId: string; updatedFields: Record<string, unknown> }
+  | { status: "not_found" };
+
+export async function updateProduct(
+  productId: string,
+  input: UpdateProductInput,
+  options: UpdateProductOptions = {}
+): Promise<UpdateProductResult> {
+  const normalizedProductId = productId.trim();
+  if (!normalizedProductId) {
+    throw new Error("Product ID is required");
+  }
+
+  const updatedFields: Record<string, unknown> = {};
+  if (input.title !== undefined) {
+    updatedFields.title = input.title;
+  }
+  if (input.description !== undefined) {
+    updatedFields.description = input.description;
+  }
+  if (input.brand !== undefined) {
+    updatedFields.brand = input.brand;
+  }
+  if (input.status !== undefined) {
+    updatedFields.status = input.status;
+  }
+
+  if (Object.keys(updatedFields).length === 0) {
+    return { status: "updated", productId: normalizedProductId, updatedFields: {} };
+  }
+
+  const now = new Date();
+  const result = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(products)
+      .set({
+        ...updatedFields,
+        updatedAt: now,
+      })
+      .where(eq(products.id, normalizedProductId))
+      .returning({ id: products.id });
+
+    if (!updated) {
+      return { status: "not_found" } as UpdateProductResult;
+    }
+
+    const event = makeCatalogEnvelope({
+      type: CatalogEventType.ProductUpdatedV1,
+      aggregateId: normalizedProductId,
+      aggregateType: "product",
+      correlationId: options.correlationId,
+      causationId: options.causationId,
+      payload: {
+        productId: normalizedProductId,
+        updatedFields,
+        updatedAt: now.toISOString(),
+      },
+    });
+
+    await tx.insert(catalogOutboxEvents).values({
+      ...mapCatalogEventToOutboxRecord(event),
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    return {
+      status: "updated",
+      productId: normalizedProductId,
+      updatedFields,
+    } as UpdateProductResult;
   });
 
   return result;
