@@ -7,6 +7,7 @@ import {
   createCatalogProduct,
   updateCatalogProduct,
 } from "@/lib/server/catalog-client";
+import logger from "@/lib/server/logger";
 import type {
   CatalogProductInput,
   CatalogProductStatus,
@@ -93,6 +94,7 @@ export async function createCatalogProductAction(
   }
 
   return withServiceAuthToken(token, async () => {
+    const startedAt = Date.now()
     const title = formData.get("title")?.toString().trim()
     const sku = formData.get("sku")?.toString().trim()
     const priceRaw = formData.get("price")?.toString()
@@ -117,8 +119,26 @@ export async function createCatalogProductAction(
       attributesInput: formData.get("attributes")?.toString(),
     })
 
+    logger.debug(
+      {
+        sku: payload.variants[0]?.sku,
+        title: payload.title,
+        status: payload.status,
+        variantCount: payload.variants.length,
+      },
+      "admin.catalog.product_create.started"
+    )
+
     try {
       const { productId } = await createCatalogProduct(payload)
+      logger.debug(
+        {
+          productId,
+          sku: payload.variants[0]?.sku,
+          durationMs: Date.now() - startedAt,
+        },
+        "admin.catalog.product_create.succeeded"
+      )
       revalidatePath("/")
       return {
         status: "success",
@@ -126,6 +146,16 @@ export async function createCatalogProductAction(
         productId,
       }
     } catch (error) {
+      logger.error(
+        {
+          err: error,
+          sku: payload.variants[0]?.sku,
+          title: payload.title,
+          status: payload.status,
+          durationMs: Date.now() - startedAt,
+        },
+        "admin.catalog.product_create.failed"
+      )
       return errorState(
         createProductInitialState,
         error instanceof Error ? error.message : "Failed to create product."
@@ -164,6 +194,19 @@ export async function updateCatalogProductAction(
       revalidatePath("/")
       return { status: "success", message: "Product updated." }
     } catch (error) {
+      logger.error(
+        {
+          err: error,
+          productId,
+          payload: {
+            hasTitle: Boolean(payload.title),
+            hasBrand: payload.brand !== undefined,
+            hasDescription: payload.description !== undefined,
+            status: payload.status,
+          },
+        },
+        "admin.catalog.product_update_failed"
+      )
       return errorState(
         updateProductInitialState,
         error instanceof Error ? error.message : "Failed to update product."
