@@ -2,10 +2,12 @@
 
 import "server-only"
 
-import { getInventorySummary } from "@/lib/server/inventory-client"
+import { getInventorySummaries } from "@/lib/server/inventory-client"
 import { listCatalogProducts } from "@/lib/server/catalog-client"
+import logger from "@/lib/server/logger"
 import { withServiceAuthFromRequest } from "@/lib/server/service-auth"
 import { formatRelativeTimeFromNow } from "@/lib/format"
+import { isAllowedRemoteImageHost } from "@/lib/media-hosts"
 import type { CatalogProductStatus } from "@/lib/types/catalog"
 import type { InventorySummary } from "@/lib/types/inventory"
 
@@ -65,16 +67,15 @@ export async function getInventoryDashboardData(
       }))
     )
 
-    const summaries = await Promise.all(
-      variants.map(async ({ variant }) => {
-        const summary = await getInventorySummary(variant.sku)
-        return summary
-      })
+    const summariesBySku = await getInventorySummaries(
+      variants.map(({ variant }) => variant.sku)
     )
 
-    const items: InventoryListItem[] = variants.map(({ product, variant }, index) => {
+    let droppedMediaCount = 0
+    const items: InventoryListItem[] = variants.map(({ product, variant }) => {
+      const normalizedSku = variant.sku.trim().toUpperCase()
       const summary =
-        summaries[index] ??
+        summariesBySku.get(normalizedSku) ??
         ({
           sku: variant.sku,
           onHand: 0,
@@ -84,6 +85,14 @@ export async function getInventoryDashboardData(
         } satisfies InventorySummary)
 
       const lowStock = summary.available <= Math.max(summary.onHand * 0.25, 25)
+
+      const mediaUrl = selectDashboardMediaUrl(product.media[0]?.url, {
+        productId: product.id,
+        sku: variant.sku,
+      })
+      if (product.media[0]?.url && !mediaUrl) {
+        droppedMediaCount += 1
+      }
 
       return {
         productId: product.id,
@@ -102,12 +111,23 @@ export async function getInventoryDashboardData(
             }
           : null,
         categories: product.categories.map((category) => category.name),
-        mediaUrl: product.media[0]?.url,
+        mediaUrl,
         summary,
         summaryUpdatedLabel: formatRelativeTimeFromNow(summary.updatedAt),
         lowStock,
       }
     })
+
+    logger.debug(
+      {
+        products: products.length,
+        variants: variants.length,
+        inventoryFound: summariesBySku.size,
+        inventoryMissing: Math.max(variants.length - summariesBySku.size, 0),
+        mediaDropped: droppedMediaCount,
+      },
+      "dashboard.data.loaded"
+    )
 
     const totalOnHand = items.reduce((sum, item) => sum + item.summary.onHand, 0)
     const totalReserved = items.reduce(
@@ -148,4 +168,51 @@ export async function getInventoryDashboardData(
       ).toISOString(),
     }
   })
+}
+
+function selectDashboardMediaUrl(
+  input: string | undefined,
+  context: { productId: string; sku: string }
+): string | undefined {
+  if (!input) {
+    return undefined
+  }
+
+  try {
+    const url = new URL(input)
+    if (!/^https?:$/.test(url.protocol)) {
+      logger.warn(
+        {
+          ...context,
+          mediaUrl: input,
+          protocol: url.protocol,
+        },
+        "dashboard.media.unsupported_protocol"
+      )
+      return undefined
+    }
+
+    if (!isAllowedRemoteImageHost(url.hostname)) {
+      logger.warn(
+        {
+          ...context,
+          mediaUrl: input,
+          host: url.hostname,
+        },
+        "dashboard.media.unconfigured_host"
+      )
+      return undefined
+    }
+
+    return input
+  } catch {
+    logger.warn(
+      {
+        ...context,
+        mediaUrl: input,
+      },
+      "dashboard.media.invalid_url"
+    )
+    return undefined
+  }
 }

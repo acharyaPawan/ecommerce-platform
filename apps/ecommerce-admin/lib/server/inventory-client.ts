@@ -13,6 +13,7 @@ import type {
   InventoryReservationPayload,
   InventoryReservationResponse,
   InventorySummary,
+  InventorySummariesResponse,
   ReservationMutationResponse,
 } from "@/lib/types/inventory"
 
@@ -27,12 +28,44 @@ export async function getInventorySummary(
       path: `/${encodeURIComponent(sku)}`,
     })
   } catch (error) {
-    logger.error({ err: error }, "inventory.summary.failed")
     if (error instanceof ServiceRequestError && error.status === 404) {
+      logger.debug({ sku }, "inventory.summary.missing")
       return null
     }
+    logger.error({ err: error, sku }, "inventory.summary.failed")
     throw error
   }
+}
+
+export async function getInventorySummaries(
+  skus: string[]
+): Promise<Map<string, InventorySummary>> {
+  const normalizedSkus = Array.from(
+    new Set(skus.map((sku) => sku.trim().toUpperCase()).filter(Boolean))
+  )
+  if (normalizedSkus.length === 0) {
+    return new Map()
+  }
+
+  const response = await serviceFetch<InventorySummariesResponse>({
+    service: "inventory",
+    path: "/summaries",
+    method: "POST",
+    body: JSON.stringify({ skus: normalizedSkus }),
+  })
+
+  if (response.missing.length > 0) {
+    logger.debug(
+      { requested: normalizedSkus.length, found: response.items.length, missing: response.missing.length },
+      "inventory.summaries.partial"
+    )
+  } else {
+    logger.debug({ count: response.items.length }, "inventory.summaries.loaded")
+  }
+
+  return new Map(
+    response.items.map((summary) => [summary.sku.trim().toUpperCase(), summary] as const)
+  )
 }
 
 export async function adjustInventory(

@@ -1,9 +1,14 @@
 import "./env/client"
 import { env } from "./env/server"
+import path from "node:path";
+import { ALLOWED_REMOTE_IMAGE_HOSTS } from "./lib/media-hosts";
 
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  turbopack: {
+    root: path.resolve(__dirname, "../.."),
+  },
   async rewrites() {
     return [
       {
@@ -13,12 +18,10 @@ const nextConfig: NextConfig = {
     ];
   },
   images: {
-    remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "images.unsplash.com",
-      },
-    ],
+    remotePatterns: ALLOWED_REMOTE_IMAGE_HOSTS.map((hostname) => ({
+      protocol: "https",
+      hostname,
+    })),
   },
   logging: {
     'fetches': {

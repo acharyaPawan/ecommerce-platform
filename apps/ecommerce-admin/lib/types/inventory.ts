@@ -6,6 +6,11 @@ export interface InventorySummary {
   updatedAt: string
 }
 
+export interface InventorySummariesResponse {
+  items: InventorySummary[]
+  missing: string[]
+}
+
 export interface InventoryAdjustmentPayload {
   sku: string
   delta: number
