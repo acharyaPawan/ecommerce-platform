@@ -1,10 +1,9 @@
 import Link from "next/link"
 
 import { InventoryDashboard } from "@/components/inventory-dashboard"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { cn } from "@/lib/utils"
 import { formatRelativeTimeFromNow } from "@/lib/format"
 import { getInventoryDashboardData } from "@/lib/server/dashboard-data"
 import type { CatalogProductStatus } from "@/lib/types/catalog"
@@ -32,6 +31,8 @@ type PageProps = {
 type StatusFilter = CatalogProductStatus | "all"
 
 const statusSet = new Set(statusOptions.map((option) => option.value))
+const resetLinkClasses =
+  "focus-visible:border-ring focus-visible:ring-ring/50 rounded-4xl border border-transparent px-3 h-9 inline-flex items-center justify-center text-sm font-medium transition-all hover:bg-muted hover:text-foreground focus-visible:ring-[3px] outline-none"
 
 function parseStatus(value?: string): StatusFilter | undefined {
   if (!value) return undefined
@@ -135,7 +136,7 @@ function FilterForm({
         {filtersApplied && (
           <Link
             href="/"
-            className={cn(buttonVariants({ variant: "ghost" }))}
+            className={resetLinkClasses}
           >
             Reset
           </Link>
