@@ -1,6 +1,7 @@
 export type CartStatus = "active" | "checked_out";
 
 export type CartItem = {
+  productId?: string | null;
   sku: string;
   qty: number;
   variantId?: string | null;

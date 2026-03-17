@@ -1,4 +1,6 @@
 import { getShipment } from "@/lib/server/fulfillment-client"
+import { getOrCreateAnalyticsSessionId } from "@/lib/server/analytics-session"
+import { recordStorefrontInteraction } from "@/lib/server/analytics-client"
 import { getOrder } from "@/lib/server/orders-client"
 import { getPaymentsForOrder } from "@/lib/server/payments-client"
 import { ServiceRequestError } from "@/lib/server/service-client"
@@ -63,6 +65,10 @@ export default async function OrderConfirmationPage({
         shipment = shipmentResult.value
       } else {
         shipment = null
+      }
+
+      if (order?.status === "confirmed") {
+        await recordConfirmedPurchaseInteractions(order)
       }
     })
   }
@@ -269,6 +275,53 @@ export default async function OrderConfirmationPage({
         </div>
       </div>
     </div>
+  )
+}
+
+async function recordConfirmedPurchaseInteractions(
+  order: NonNullable<Awaited<ReturnType<typeof getOrder>>>
+) {
+  const sessionId = await getOrCreateAnalyticsSessionId()
+  const occurredAt = order.updatedAt
+
+  const purchaseItems = order.cartSnapshot.items
+    .map((item, index) => ({
+      index,
+      productId: item.productId?.trim(),
+      variantId: item.variantId?.trim() || undefined,
+      sku: item.sku,
+      qty: item.qty,
+      unitPriceCents:
+        typeof item.unitPriceCents === "number" ? item.unitPriceCents : undefined,
+      currency: item.currency ?? order.currency,
+    }))
+    .filter(
+      (item): item is typeof item & { productId: string } => Boolean(item.productId)
+    )
+
+  if (purchaseItems.length === 0) {
+    return
+  }
+
+  await Promise.allSettled(
+    purchaseItems.map((item) =>
+      recordStorefrontInteraction({
+        eventType: "purchase",
+        productId: item.productId,
+        variantId: item.variantId,
+        sessionId,
+        occurredAt,
+        idempotencyKey: `order:${order.id}:purchase:${item.index}:${item.variantId ?? item.sku}`,
+        properties: {
+          orderId: order.id,
+          sku: item.sku,
+          qty: item.qty,
+          unitPriceCents: item.unitPriceCents,
+          currency: item.currency,
+          sourceSurface: "order-confirmation",
+        },
+      })
+    )
   )
 }
 

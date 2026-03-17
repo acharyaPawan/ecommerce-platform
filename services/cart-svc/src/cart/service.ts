@@ -413,7 +413,9 @@ export class CartService {
     throw new CartNotFoundError();
   }
 
-  private normalizeItem(input: Pick<AddItemPayload, "sku" | "qty" | "variantId" | "selectedOptions">): CartItem {
+  private normalizeItem(
+    input: Pick<AddItemPayload, "productId" | "sku" | "qty" | "variantId" | "selectedOptions">
+  ): CartItem {
     const sku = normalizeSku(input.sku);
     const qty = input.qty;
     if (qty > this.options.maxQtyPerItem) {
@@ -421,6 +423,7 @@ export class CartService {
     }
 
     return {
+      productId: normalizeNullable(input.productId) ?? null,
       sku,
       qty,
       variantId: normalizeNullable(input.variantId),

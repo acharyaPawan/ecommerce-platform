@@ -8,6 +8,7 @@ export const cartContextSchema = z.object({
 
 export const createAddItemSchema = (maxQtyPerItem: number) =>
   z.object({
+    productId: z.string().min(1).max(128).optional(),
     sku: z.string().min(1).max(128),
     qty: z.number().int().min(1).max(maxQtyPerItem),
     variantId: z.string().min(1).max(128).optional(),

@@ -42,6 +42,7 @@ export async function addToCartAction(
     const result = await withServiceAuthFromRequest(async () =>
       addCartItem({
         cartId,
+        productId: productId || undefined,
         sku,
         qty,
         variantId: variantId || undefined,

@@ -50,6 +50,7 @@ export async function getCart(cartId: string): Promise<CartResponse | null> {
 
 type AddItemInput = {
   cartId?: string
+  productId?: string
   sku: string
   qty: number
   variantId?: string
@@ -71,6 +72,7 @@ export async function addCartItem(input: AddItemInput) {
     method: "POST",
     headers,
     body: JSON.stringify({
+      productId: input.productId,
       sku: input.sku,
       qty: input.qty,
       variantId: input.variantId,

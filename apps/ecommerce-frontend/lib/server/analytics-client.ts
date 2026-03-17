@@ -13,6 +13,7 @@ type RecordStorefrontInteractionInput = {
   sessionId?: string
   occurredAt?: string
   properties?: Record<string, unknown>
+  idempotencyKey?: string
 }
 
 type RecordStorefrontInteractionResponse = {
@@ -38,6 +39,11 @@ export async function recordStorefrontInteraction(
     service: "analytics",
     path: "/interactions",
     method: "POST",
+    headers: input.idempotencyKey
+      ? {
+          "Idempotency-Key": input.idempotencyKey,
+        }
+      : undefined,
     json: {
       productId: input.productId,
       variantId: input.variantId,
