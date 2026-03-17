@@ -13,6 +13,7 @@ import { interactionEventIngestSchema } from "@ecommerce/events";
 import type { AnalyticsServiceConfig } from "../config.js";
 import logger from "../logger.js";
 import {
+  getRelatedProductRecommendations,
   recordInteractionEvent,
   resolveInteractionActor,
   type RecordInteractionInput,
@@ -31,6 +32,27 @@ export const createAnalyticsRouter = ({
   const router = new Hono();
   const verifyOptions = resolveVerifyAuthTokenOptions(config.auth);
   const authenticateRequest = createRequestAuthenticator(verifyOptions);
+
+  router.get("/recommendations/products/:productId/related", async (c) => {
+    const productId = c.req.param("productId")?.trim();
+    if (!productId) {
+      return c.json({ error: "Product ID is required" }, 400);
+    }
+
+    const limitRaw = c.req.query("limit");
+    const parsedLimit = limitRaw ? Number(limitRaw) : undefined;
+    const limit =
+      parsedLimit && Number.isFinite(parsedLimit) && parsedLimit > 0
+        ? Math.trunc(parsedLimit)
+        : undefined;
+
+    const items = await getRelatedProductRecommendations({
+      productId,
+      limit,
+    });
+
+    return c.json({ items });
+  });
 
   router.post("/interactions", async (c) => {
     let payload: unknown;

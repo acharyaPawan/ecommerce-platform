@@ -3,8 +3,11 @@ import { notFound } from "next/navigation"
 
 import { AddToCartForm } from "@/components/cart/add-to-cart-form"
 import { ProductViewTracker } from "@/components/analytics/product-view-tracker"
+import { RelatedProductsSection } from "@/components/recommendations/related-products-section"
 import { formatCurrency } from "@/lib/format"
 import { getCatalogProduct } from "@/lib/server/catalog-client"
+import { getRelatedProductRecommendations } from "@/lib/server/recommendations-client"
+import { loadStorefrontData } from "@/lib/server/storefront-data"
 import {
   getPrimaryPrice,
   getPrimaryVariant,
@@ -23,6 +26,20 @@ export default async function ProductPage({ params }: PageProps) {
   if (!product) {
     notFound()
   }
+  const relatedRecommendations = await getRelatedProductRecommendations(product.id, {
+    limit: 3,
+  }).catch(() => ({ items: [] }))
+
+  const relatedProducts =
+    relatedRecommendations.items.length > 0
+      ? await loadStorefrontData().then((data) =>
+          relatedRecommendations.items
+            .map((recommendation) =>
+              data.products.find((candidate) => candidate.id === recommendation.productId)
+            )
+            .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate))
+        )
+      : []
 
   const primaryVariant = getPrimaryVariant(product)
   const primaryPrice = getPrimaryPrice(primaryVariant)
@@ -104,6 +121,12 @@ export default async function ProductPage({ params }: PageProps) {
           )}
         </div>
       </section>
+      {relatedProducts.length > 0 ? (
+        <RelatedProductsSection
+          products={relatedProducts}
+          recommendations={relatedRecommendations.items}
+        />
+      ) : null}
     </div>
   )
 }
