@@ -9,12 +9,15 @@ import {
   removeCartItem,
   updateCartItem,
 } from "@/lib/server/cart-client"
+import { recordStorefrontInteraction } from "@/lib/server/analytics-client"
+import { getOrCreateAnalyticsSessionId } from "@/lib/server/analytics-session"
 import { getCartId, setCartId } from "@/lib/server/cart-session"
 import { withServiceAuthFromRequest } from "@/lib/server/service-auth"
 import type {
   CartActionState,
   CheckoutActionState,
 } from "@/app/actions/cart-action-state"
+import logger from "@/lib/server/logger"
 
 export async function addToCartAction(
   _prev: CartActionState,
@@ -23,6 +26,7 @@ export async function addToCartAction(
   const sku = formData.get("sku")?.toString().trim()
   const qtyRaw = formData.get("qty")?.toString() ?? "1"
   const variantId = formData.get("variantId")?.toString()
+  const productId = formData.get("productId")?.toString().trim()
 
   if (!sku) {
     return { status: "error", message: "Missing SKU." }
@@ -48,6 +52,26 @@ export async function addToCartAction(
     const nextCartId = result.headers.cartId ?? result.cart?.id
     if (nextCartId) {
       await setCartId(nextCartId)
+    }
+
+    if (productId) {
+      const sessionId = await getOrCreateAnalyticsSessionId()
+      try {
+        await recordStorefrontInteraction({
+          eventType: "cart_add",
+          productId,
+          variantId: variantId || undefined,
+          sessionId,
+          properties: {
+            sku,
+            qty,
+            surface: "add-to-cart-form",
+          },
+        })
+      } catch (err) {
+        // Do not fail the user flow if analytics ingestion is unavailable.
+        logger.warn({ err }, "analytics.cart_add.ingestion_failed")
+      }
     }
 
     revalidatePath("/", "layout")

@@ -2,6 +2,7 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 
 import { AddToCartForm } from "@/components/cart/add-to-cart-form"
+import { ProductViewTracker } from "@/components/analytics/product-view-tracker"
 import { formatCurrency } from "@/lib/format"
 import { getCatalogProduct } from "@/lib/server/catalog-client"
 import {
@@ -29,6 +30,10 @@ export default async function ProductPage({ params }: PageProps) {
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-10 px-4 py-10">
+      <ProductViewTracker
+        productId={product.id}
+        variantId={primaryVariant?.id}
+      />
       <Link href="/" className="text-sm font-semibold text-[color:var(--teal)]">
         Back to catalog
       </Link>
@@ -87,6 +92,7 @@ export default async function ProductPage({ params }: PageProps) {
                 </div>
               </div>
               <AddToCartForm
+                productId={product.id}
                 sku={primaryVariant.sku}
                 variantId={primaryVariant.id}
               />

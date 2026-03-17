@@ -8,6 +8,7 @@ import { getServiceAuthToken } from "@/lib/server/service-auth-context"
 export type ServiceName =
   | "iam"
   | "catalog"
+  | "analytics"
   | "inventory"
   | "cart"
   | "orders"
@@ -24,6 +25,7 @@ type ServiceConfig = {
 const defaultServiceConfig: Record<ServiceName, ServiceConfig> = {
   iam: { url: "http://localhost:3001", timeoutMs: 400 },
   catalog: { url: "http://localhost:3002", timeoutMs: 15_000 },
+  analytics: { url: "http://localhost:3010", timeoutMs: 8_000 },
   inventory: { url: "http://localhost:3003", timeoutMs: 10_000 },
   cart: { url: "http://localhost:3004", timeoutMs: 12000 },
   orders: { url: "http://localhost:3005", timeoutMs: 10_000 },
@@ -41,6 +43,10 @@ const serviceEnvKeys: Record<ServiceName, { url: string; timeout: string }> = {
   catalog: {
     url: "SERVICE_CATALOG_URL",
     timeout: "SERVICE_CATALOG_TIMEOUT_MS",
+  },
+  analytics: {
+    url: "SERVICE_ANALYTICS_URL",
+    timeout: "SERVICE_ANALYTICS_TIMEOUT_MS",
   },
   inventory: {
     url: "SERVICE_INVENTORY_URL",

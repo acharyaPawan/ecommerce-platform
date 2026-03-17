@@ -7,10 +7,12 @@ import { cartActionInitialState } from "@/app/actions/cart-action-state"
 import { SubmitButton } from "@/components/ui/submit-button"
 
 export function AddToCartForm({
+  productId,
   sku,
   qty = 1,
   variantId,
 }: {
+  productId?: string
   sku: string
   qty?: number
   variantId?: string | null
@@ -22,6 +24,9 @@ export function AddToCartForm({
 
   return (
     <form action={action} className="space-y-2">
+      {productId ? (
+        <input type="hidden" name="productId" value={productId} />
+      ) : null}
       <input type="hidden" name="sku" value={sku} />
       <input type="hidden" name="qty" value={qty} />
       {variantId ? (

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ecommerce/core": "workspace:*",
+    "@ecommerce/events": "workspace:*",
     "@opentelemetry/api-logs": "^0.210.0",
     "@opentelemetry/instrumentation": "^0.210.0",
     "@opentelemetry/sdk-logs": "^0.210.0",

@@ -4,6 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 
 import { AddToCartForm } from "@/components/cart/add-to-cart-form"
+import { trackStorefrontInteraction } from "@/lib/client/analytics"
 import { formatCurrency } from "@/lib/format"
 import type { CatalogProduct } from "@/lib/types/catalog"
 import {
@@ -23,6 +24,16 @@ export function ProductCard({ product }: { product: CatalogProduct }) {
       <Link
         href={`/products/${product.id}`}
         className="relative block h-48 overflow-hidden"
+        onClick={() => {
+          trackStorefrontInteraction({
+            eventType: "click",
+            productId: product.id,
+            variantId: primaryVariant?.id,
+            properties: {
+              surface: "product-card-image",
+            },
+          })
+        }}
       >
         {showImage && heroImage ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -65,6 +76,7 @@ export function ProductCard({ product }: { product: CatalogProduct }) {
         <div className="mt-auto">
           {primaryVariant ? (
             <AddToCartForm
+              productId={product.id}
               sku={primaryVariant.sku}
               variantId={primaryVariant.id}
             />

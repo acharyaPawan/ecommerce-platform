@@ -6,6 +6,8 @@ const serviceEnvShape = {
   SERVICE_IAM_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
   SERVICE_CATALOG_URL: z.string().url().optional(),
   SERVICE_CATALOG_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
+  SERVICE_ANALYTICS_URL: z.string().url().optional(),
+  SERVICE_ANALYTICS_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
   SERVICE_INVENTORY_URL: z.string().url().optional(),
   SERVICE_INVENTORY_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
   SERVICE_CART_URL: z.string().url().optional(),

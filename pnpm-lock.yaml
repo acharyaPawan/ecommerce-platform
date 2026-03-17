@@ -190,6 +190,9 @@ importers:
       '@ecommerce/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@ecommerce/events':
+        specifier: workspace:*
+        version: link:../../packages/events
       '@opentelemetry/api-logs':
         specifier: ^0.210.0
         version: 0.210.0
