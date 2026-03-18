@@ -5,6 +5,7 @@ import { AddToCartForm } from "@/components/cart/add-to-cart-form"
 import { ProductViewTracker } from "@/components/analytics/product-view-tracker"
 import { RelatedProductsSection } from "@/components/recommendations/related-products-section"
 import { formatCurrency } from "@/lib/format"
+import { rerankRelatedHybrid } from "@/lib/recommendations/hybrid"
 import { getCatalogProduct } from "@/lib/server/catalog-client"
 import { getRelatedProductRecommendations } from "@/lib/server/recommendations-client"
 import { loadStorefrontData } from "@/lib/server/storefront-data"
@@ -40,6 +41,14 @@ export default async function ProductPage({ params }: PageProps) {
             .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate))
         )
       : []
+  const rankedRelatedRecommendations = rerankRelatedHybrid(
+    product,
+    relatedProducts,
+    relatedRecommendations.items
+  )
+  const rankedRelatedProducts = rankedRelatedRecommendations
+    .map((item) => relatedProducts.find((product) => product.id === item.productId))
+    .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate))
 
   const primaryVariant = getPrimaryVariant(product)
   const primaryPrice = getPrimaryPrice(primaryVariant)
@@ -121,10 +130,10 @@ export default async function ProductPage({ params }: PageProps) {
           )}
         </div>
       </section>
-      {relatedProducts.length > 0 ? (
+      {rankedRelatedProducts.length > 0 ? (
         <RelatedProductsSection
-          products={relatedProducts}
-          recommendations={relatedRecommendations.items}
+          products={rankedRelatedProducts}
+          recommendations={rankedRelatedRecommendations}
         />
       ) : null}
     </div>

@@ -1,7 +1,13 @@
 import Link from "next/link"
 
 import { ProductCard } from "@/components/product-card"
+import { PersonalizedProductsSection } from "@/components/recommendations/personalized-products-section"
+import { getAnalyticsSessionId, getOrCreateAnalyticsSessionId } from "@/lib/server/analytics-session"
+import { loadVerifiedAuthSession } from "@/lib/server/auth-session"
+import { rerankPersonalizedHybrid } from "@/lib/recommendations/hybrid"
+import { getPersonalProductRecommendations } from "@/lib/server/recommendations-client"
 import { loadStorefrontData } from "@/lib/server/storefront-data"
+import { getCatalogProduct } from "@/lib/server/catalog-client"
 import type { UrlObject } from "url"
 
 export const dynamic = "force-dynamic"
@@ -40,6 +46,41 @@ export default async function Page({ searchParams }: PageProps) {
 
   // Due to db cold start, sometime this result timeout error.
   const data = await loadStorefrontData({ query, category })
+  const authSession = await loadVerifiedAuthSession()
+  const analyticsSessionId = authSession
+    ? await getAnalyticsSessionId()
+    : await getOrCreateAnalyticsSessionId()
+  const personalRecommendations = await getPersonalProductRecommendations({
+    userId: authSession?.userId,
+    sessionId: authSession ? undefined : analyticsSessionId,
+    limit: 3,
+  }).catch(() => ({ items: [], seedProductIds: [] }))
+  const personalizedProducts =
+    personalRecommendations.items.length > 0
+      ? (
+          await Promise.all(
+            personalRecommendations.items.map((item) => getCatalogProduct(item.productId))
+          )
+        ).filter((product): product is NonNullable<typeof product> => Boolean(product))
+      : []
+  const seedProducts =
+    personalRecommendations.seedProductIds.length > 0
+      ? (
+          await Promise.all(
+            personalRecommendations.seedProductIds.map((productId) =>
+              getCatalogProduct(productId)
+            )
+          )
+        ).filter((product): product is NonNullable<typeof product> => Boolean(product))
+      : []
+  const rankedPersonalRecommendations = rerankPersonalizedHybrid(
+    seedProducts,
+    personalizedProducts,
+    personalRecommendations.items
+  )
+  const rankedPersonalProducts = rankedPersonalRecommendations
+    .map((item) => personalizedProducts.find((product) => product.id === item.productId))
+    .filter((product): product is NonNullable<typeof product> => Boolean(product))
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-12 px-4 py-10">
@@ -170,6 +211,14 @@ export default async function Page({ searchParams }: PageProps) {
           ))}
         </div>
       </section>
+
+      {rankedPersonalProducts.length > 0 ? (
+        <PersonalizedProductsSection
+          products={rankedPersonalProducts}
+          recommendations={rankedPersonalRecommendations}
+          personalizedFor={authSession ? "user" : "session"}
+        />
+      ) : null}
 
       <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         {data.products.length > 0 ? (

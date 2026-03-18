@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, ne, or, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, ne, notInArray, or } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import db from "../db/index.js";
 import { interactionEvents, interactionIngestionKeys } from "../db/schema.js";
@@ -234,6 +234,154 @@ export async function getRelatedProductRecommendations(input: {
   return [...recommendations, ...fallback].slice(0, limit);
 }
 
+export async function getPersonalProductRecommendations(input: {
+  userId?: string;
+  sessionId?: string;
+  limit?: number;
+  lookbackDays?: number;
+}): Promise<{
+  items: RelatedProductRecommendation[];
+  seedProductIds: string[];
+}> {
+  const actor = resolvePreferredActor(input);
+  const limit = clamp(input.limit ?? 6, 1, 24);
+  const lookbackDays = clamp(input.lookbackDays ?? 120, 14, 365);
+  const since = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000);
+
+  if (!actor) {
+    return {
+      items: await getPopularProductFallback({
+        since,
+        excludeProductIds: [],
+        limit,
+      }),
+      seedProductIds: [],
+    };
+  }
+
+  const actorEvents = await db
+    .select({
+      productId: interactionEvents.productId,
+      userId: interactionEvents.userId,
+      sessionId: interactionEvents.sessionId,
+      eventType: interactionEvents.eventType,
+      occurredAt: interactionEvents.occurredAt,
+    })
+    .from(interactionEvents)
+    .where(and(buildExactActorCondition(actor), gte(interactionEvents.occurredAt, since)));
+
+  // Step 1: Build this actor's product-interest profile.
+  // We sum event weights per product so purchases/reviews influence more than views.
+  const actorHistory = buildProductHistoryWeights(actorEvents);
+  const historyProductIds = Array.from(actorHistory.keys());
+  // Keep top seed products for response explainability and troubleshooting.
+  const seedProductIds = Array.from(actorHistory.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([productId]) => productId);
+
+  if (historyProductIds.length === 0) {
+    return {
+      items: await getPopularProductFallback({
+        since,
+        excludeProductIds: [],
+        limit,
+      }),
+      seedProductIds: [],
+    };
+  }
+
+  // CohertEvents: "find people like me" signal
+  // This mean all events from other actors on products you interacted with.
+  const cohortEvents = await db
+    .select({
+      productId: interactionEvents.productId,
+      userId: interactionEvents.userId,
+      sessionId: interactionEvents.sessionId,
+      eventType: interactionEvents.eventType,
+      occurredAt: interactionEvents.occurredAt,
+    })
+    .from(interactionEvents)
+    .where(
+      and(
+        inArray(interactionEvents.productId, historyProductIds),//productId from actors historyProductsId
+        gte(interactionEvents.occurredAt, since),
+        excludeExactActorCondition(actor)//excluding actors
+      )
+    );
+
+  const cohortScores = buildCohortActorScores(cohortEvents, actorHistory);
+  // Step 2: Cohort score = overlap on actor's history products.
+  // Actors who strongly engage with this actor's top products get higher scores.
+  let recommendations: RelatedProductRecommendation[] = [];
+
+  if (cohortScores.size > 0) {
+    const userIds = Array.from(cohortScores.keys())
+      .filter((key): key is `u:${string}` => key.startsWith("u:"))
+      .map((key) => key.slice(2));
+    const sessionIds = Array.from(cohortScores.keys())
+      .filter((key): key is `s:${string}` => key.startsWith("s:"))
+      .map((key) => key.slice(2));
+
+    const candidateConditions = [];
+    if (userIds.length > 0) {
+      candidateConditions.push(inArray(interactionEvents.userId, userIds));
+    }
+    if (sessionIds.length > 0) {
+      candidateConditions.push(inArray(interactionEvents.sessionId, sessionIds));
+    }
+
+    if (candidateConditions.length > 0) {
+      const candidateEvents = await db
+        .select({
+          productId: interactionEvents.productId,
+          userId: interactionEvents.userId,
+          sessionId: interactionEvents.sessionId,
+          eventType: interactionEvents.eventType,
+          occurredAt: interactionEvents.occurredAt,
+        })
+        .from(interactionEvents)
+        .where(
+          and(
+            candidateConditions.length === 1
+              ? candidateConditions[0]!
+              : or(...candidateConditions),
+            gte(interactionEvents.occurredAt, since),
+            // Recommend only unseen products to avoid echoing history back to the actor.
+            notInArray(interactionEvents.productId, historyProductIds)
+          )
+        );
+
+      // Step 3: Final candidate score = cohort actor score * candidate event weight.
+      recommendations = scoreRelatedProducts(candidateEvents, cohortScores).slice(
+        0,
+        limit
+      );
+    }
+  }
+
+  if (recommendations.length >= limit) {
+    return {
+      items: recommendations,
+      seedProductIds,
+    };
+  }
+
+  const fallback = await getPopularProductFallback({
+    since,
+    excludeProductIds: [
+      ...historyProductIds,
+      ...recommendations.map((item) => item.productId),
+    ],
+    limit: limit - recommendations.length,
+  });
+
+  return {
+    items: [...recommendations, ...fallback].slice(0, limit),
+    seedProductIds,
+  };
+}
+
 function serializeRecordedEvent(
   event: typeof interactionEvents.$inferSelect,
   idempotent: boolean
@@ -317,6 +465,41 @@ function buildActorWeights(events: InteractionRow[]): Map<ActorKey, number> {
   }
 
   return actorWeights;
+}
+
+function buildProductHistoryWeights(events: InteractionRow[]): Map<string, number> {
+  const weights = new Map<string, number>();
+
+  for (const event of events) {
+    const eventWeight = EVENT_WEIGHTS[event.eventType as InteractionEventType] ?? 1;
+    weights.set(event.productId, (weights.get(event.productId) ?? 0) + eventWeight);
+  }
+
+  return weights;
+}
+
+function buildCohortActorScores(
+  events: InteractionRow[],
+  historyWeights: Map<string, number>
+): Map<ActorKey, number> {
+  const scores = new Map<ActorKey, number>();
+
+  for (const event of events) {
+    const actorKey = toActorKey(event);
+    if (!actorKey) {
+      continue;
+    }
+
+    const anchorWeight = historyWeights.get(event.productId);
+    if (!anchorWeight) {
+      continue;
+    }
+
+    const eventWeight = EVENT_WEIGHTS[event.eventType as InteractionEventType] ?? 1;
+    scores.set(actorKey, (scores.get(actorKey) ?? 0) + anchorWeight * eventWeight);
+  }
+
+  return scores;
 }
 
 /**
@@ -472,6 +655,33 @@ function toActorKey(event: Pick<InteractionRow, "userId" | "sessionId">): ActorK
     return `s:${event.sessionId}`;
   }
   return null;
+}
+
+function resolvePreferredActor(input: {
+  userId?: string;
+  sessionId?: string;
+}): { userId?: string; sessionId?: string } | null {
+  if (input.userId?.trim()) {
+    return { userId: input.userId.trim() };
+  }
+  if (input.sessionId?.trim()) {
+    return { sessionId: input.sessionId.trim() };
+  }
+  return null;
+}
+
+function buildExactActorCondition(actor: { userId?: string; sessionId?: string }) {
+  if (actor.userId) {
+    return eq(interactionEvents.userId, actor.userId);
+  }
+  return eq(interactionEvents.sessionId, actor.sessionId!);
+}
+
+function excludeExactActorCondition(actor: { userId?: string; sessionId?: string }) {
+  if (actor.userId) {
+    return ne(interactionEvents.userId, actor.userId);
+  }
+  return ne(interactionEvents.sessionId, actor.sessionId!);
 }
 
 /**

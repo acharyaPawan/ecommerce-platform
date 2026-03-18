@@ -13,6 +13,7 @@ import { interactionEventIngestSchema } from "@ecommerce/events";
 import type { AnalyticsServiceConfig } from "../config.js";
 import logger from "../logger.js";
 import {
+  getPersonalProductRecommendations,
   getRelatedProductRecommendations,
   recordInteractionEvent,
   resolveInteractionActor,
@@ -52,6 +53,25 @@ export const createAnalyticsRouter = ({
     });
 
     return c.json({ items });
+  });
+
+  router.get("/recommendations/for-you", async (c) => {
+    const userId = c.req.query("userId")?.trim();
+    const sessionId = c.req.query("sessionId")?.trim();
+    const limitRaw = c.req.query("limit");
+    const parsedLimit = limitRaw ? Number(limitRaw) : undefined;
+    const limit =
+      parsedLimit && Number.isFinite(parsedLimit) && parsedLimit > 0
+        ? Math.trunc(parsedLimit)
+        : undefined;
+
+    const items = await getPersonalProductRecommendations({
+      userId,
+      sessionId,
+      limit,
+    });
+
+    return c.json(items);
   });
 
   router.post("/interactions", async (c) => {

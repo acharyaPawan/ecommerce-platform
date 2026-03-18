@@ -10,3 +10,8 @@ export type RelatedProductRecommendation = {
 export type RelatedProductRecommendationsResponse = {
   items: RelatedProductRecommendation[]
 }
+
+export type PersonalProductRecommendationsResponse = {
+  items: RelatedProductRecommendation[]
+  seedProductIds: string[]
+}
