@@ -40,6 +40,7 @@ export type RelatedProductRecommendation = {
   supportingSignals: number;
   strongestEventType: InteractionEventType;
   explanation: RecommendationBehaviorExplanation;
+  diagnostics: RecommendationDiagnostics;
 };
 
 export type RecommendationBehaviorExplanation = {
@@ -49,6 +50,20 @@ export type RecommendationBehaviorExplanation = {
   contributingActors: number;
   seedProductIds?: string[];
   anchorProductId?: string;
+};
+
+export type RecommendationDiagnostics = {
+  source: "collaborative" | "popular_fallback";
+  selectionStage:
+    | "primary_diversified"
+    | "primary_relaxed"
+    | "low_support_backfill"
+    | "popular_backfill";
+  rawBehaviorScore: number;
+  fallbackUsed: boolean;
+  actorThresholdPassed: boolean;
+  diversifiedBySignal: boolean;
+  contributingActors: number;
 };
 
 type ActorKey = `u:${string}` | `s:${string}`;
@@ -66,6 +81,17 @@ const EVENT_WEIGHTS: Record<InteractionEventType, number> = {
   rating: 5,     // engaged
   review: 5,     // engaged
   purchase: 6,   // highest signal
+};
+
+const MIN_COLLABORATIVE_ACTOR_SUPPORT = 2;
+const MAX_ITEMS_PER_EVENT_TYPE_DURING_DIVERSIFICATION = 2;
+
+type RecommendationCandidate = {
+  productId: string;
+  score: number;
+  supportingSignals: number;
+  strongestEventType: InteractionEventType;
+  contributingActors: number;
 };
 
 /**
@@ -223,18 +249,14 @@ export async function getRelatedProductRecommendations(input: {
           )
         );
 
-      recommendations = scoreRelatedProducts(candidateEvents, actorWeights)
-        .slice(0, limit)
-        .map((item) => ({
-          ...item,
-          explanation: buildBehaviorExplanation({
-            basis: "related_behavior",
-            strongestEventType: item.strongestEventType,
-            supportingSignals: item.supportingSignals,
-            contributingActors: item.contributingActors,
-            anchorProductId: input.productId,
-          }),
-        }));
+      recommendations = buildCollaborativeRecommendations(
+        scoreRelatedProducts(candidateEvents, actorWeights),
+        {
+          basis: "related_behavior",
+          limit,
+          anchorProductId: input.productId,
+        }
+      );
     }
   }
 
@@ -371,18 +393,14 @@ export async function getPersonalProductRecommendations(input: {
         );
 
       // Step 3: Final candidate score = cohort actor score * candidate event weight.
-      recommendations = scoreRelatedProducts(candidateEvents, cohortScores)
-        .slice(0, limit)
-        .map((item) => ({
-          ...item,
-          explanation: buildBehaviorExplanation({
-            basis: "personal_behavior",
-            strongestEventType: item.strongestEventType,
-            supportingSignals: item.supportingSignals,
-            contributingActors: item.contributingActors,
-            seedProductIds,
-          }),
-        }));
+      recommendations = buildCollaborativeRecommendations(
+        scoreRelatedProducts(candidateEvents, cohortScores),
+        {
+          basis: "personal_behavior",
+          limit,
+          seedProductIds,
+        }
+      );
     }
   }
 
@@ -537,13 +555,7 @@ function buildCohortActorScores(
 function scoreRelatedProducts(
   events: InteractionRow[],
   actorWeights: Map<ActorKey, number>
-): Array<{
-  productId: string;
-  score: number;
-  supportingSignals: number;
-  strongestEventType: InteractionEventType;
-  contributingActors: number;
-}> {
+): RecommendationCandidate[] {
   const scored = new Map<
     string,
     {
@@ -676,7 +688,7 @@ async function getPopularProductFallback(input: {
   }
 
   return Array.from(scores.entries())
-    .map(([productId, value]) => ({
+    .map<RelatedProductRecommendation>(([productId, value]) => ({
       productId,
       score: roundScore(value.score),
       supportingSignals: value.supportingSignals,
@@ -687,6 +699,15 @@ async function getPopularProductFallback(input: {
         supportingSignals: value.supportingSignals,
         contributingActors: value.actors.size,
       }),
+      diagnostics: {
+        source: "popular_fallback",
+        selectionStage: "popular_backfill",
+        rawBehaviorScore: roundScore(value.score),
+        fallbackUsed: true,
+        actorThresholdPassed: value.actors.size >= MIN_COLLABORATIVE_ACTOR_SUPPORT,
+        diversifiedBySignal: false,
+        contributingActors: value.actors.size,
+      },
     }))
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
@@ -696,6 +717,123 @@ async function getPopularProductFallback(input: {
       return a.productId.localeCompare(b.productId);
     })
     .slice(0, input.limit);
+}
+
+function buildCollaborativeRecommendations(
+  candidates: RecommendationCandidate[],
+  input: {
+    basis: RecommendationBehaviorExplanation["basis"];
+    limit: number;
+    seedProductIds?: string[];
+    anchorProductId?: string;
+  }
+): RelatedProductRecommendation[] {
+  const selectedCandidates = applyRecommendationGuardrails(candidates, input.limit);
+
+  return selectedCandidates.map((item) => ({
+    productId: item.productId,
+    score: item.score,
+    supportingSignals: item.supportingSignals,
+    strongestEventType: item.strongestEventType,
+    explanation: buildBehaviorExplanation({
+      basis: input.basis,
+      strongestEventType: item.strongestEventType,
+      supportingSignals: item.supportingSignals,
+      contributingActors: item.contributingActors,
+      seedProductIds: input.seedProductIds,
+      anchorProductId: input.anchorProductId,
+    }),
+    diagnostics: {
+      source: "collaborative",
+      selectionStage: item.selectionStage,
+      rawBehaviorScore: item.score,
+      fallbackUsed: false,
+      actorThresholdPassed:
+        item.contributingActors >= MIN_COLLABORATIVE_ACTOR_SUPPORT,
+      diversifiedBySignal: item.selectionStage === "primary_diversified",
+      contributingActors: item.contributingActors,
+    },
+  }));
+}
+
+export function applyRecommendationGuardrails(
+  candidates: RecommendationCandidate[],
+  limit: number
+): Array<
+  RecommendationCandidate & {
+    selectionStage:
+      | "primary_diversified"
+      | "primary_relaxed"
+      | "low_support_backfill";
+  }
+> {
+  if (limit <= 0) {
+    return [];
+  }
+
+  const robust = candidates.filter(
+    (item) => item.contributingActors >= MIN_COLLABORATIVE_ACTOR_SUPPORT
+  );
+  const sparse = candidates.filter(
+    (item) => item.contributingActors < MIN_COLLABORATIVE_ACTOR_SUPPORT
+  );
+  const uniqueSignalTypes = new Set(
+    robust.map((item) => item.strongestEventType)
+  ).size;
+
+  const selected: Array<
+    RecommendationCandidate & {
+      selectionStage:
+        | "primary_diversified"
+        | "primary_relaxed"
+        | "low_support_backfill";
+    }
+  > = [];
+  const skippedForRelaxedPass: RecommendationCandidate[] = [];
+  const perEventTypeCounts = new Map<InteractionEventType, number>();
+
+  for (const candidate of robust) {
+    const eventCount = perEventTypeCounts.get(candidate.strongestEventType) ?? 0;
+    const canDiversify =
+      uniqueSignalTypes > 1 &&
+      eventCount < MAX_ITEMS_PER_EVENT_TYPE_DURING_DIVERSIFICATION;
+
+    if (canDiversify) {
+      selected.push({
+        ...candidate,
+        selectionStage: "primary_diversified",
+      });
+      perEventTypeCounts.set(candidate.strongestEventType, eventCount + 1);
+    } else {
+      skippedForRelaxedPass.push(candidate);
+    }
+
+    if (selected.length >= limit) {
+      return selected.slice(0, limit);
+    }
+  }
+
+  for (const candidate of skippedForRelaxedPass) {
+    selected.push({
+      ...candidate,
+      selectionStage: "primary_relaxed",
+    });
+    if (selected.length >= limit) {
+      return selected.slice(0, limit);
+    }
+  }
+
+  for (const candidate of sparse) {
+    selected.push({
+      ...candidate,
+      selectionStage: "low_support_backfill",
+    });
+    if (selected.length >= limit) {
+      return selected.slice(0, limit);
+    }
+  }
+
+  return selected;
 }
 
 /**

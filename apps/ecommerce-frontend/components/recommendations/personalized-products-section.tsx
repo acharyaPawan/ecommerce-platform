@@ -59,6 +59,18 @@ export function PersonalizedProductsSection({
                       {signal.supportingSignals}
                     </span>
                   </p>
+                  <p>
+                    Supporting actors:{" "}
+                    <span className="font-semibold text-[color:var(--ink)]">
+                      {signal.diagnostics.contributingActors}
+                    </span>
+                  </p>
+                  <p>
+                    Ranking source:{" "}
+                    <span className="font-semibold text-[color:var(--ink)]">
+                      {signal.diagnostics.source}
+                    </span>
+                  </p>
                   <ul className="mt-2 space-y-1">
                     {signal.explanation.reasons.map((reason) => (
                       <li key={reason}>• {reason}</li>
