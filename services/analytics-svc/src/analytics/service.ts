@@ -39,6 +39,16 @@ export type RelatedProductRecommendation = {
   score: number;
   supportingSignals: number;
   strongestEventType: InteractionEventType;
+  explanation: RecommendationBehaviorExplanation;
+};
+
+export type RecommendationBehaviorExplanation = {
+  basis: "related_behavior" | "personal_behavior" | "popular_fallback";
+  summary: string;
+  reasons: string[];
+  contributingActors: number;
+  seedProductIds?: string[];
+  anchorProductId?: string;
 };
 
 type ActorKey = `u:${string}` | `s:${string}`;
@@ -213,10 +223,18 @@ export async function getRelatedProductRecommendations(input: {
           )
         );
 
-      recommendations = scoreRelatedProducts(candidateEvents, actorWeights).slice(
-        0,
-        limit
-      );
+      recommendations = scoreRelatedProducts(candidateEvents, actorWeights)
+        .slice(0, limit)
+        .map((item) => ({
+          ...item,
+          explanation: buildBehaviorExplanation({
+            basis: "related_behavior",
+            strongestEventType: item.strongestEventType,
+            supportingSignals: item.supportingSignals,
+            contributingActors: item.contributingActors,
+            anchorProductId: input.productId,
+          }),
+        }));
     }
   }
 
@@ -353,10 +371,18 @@ export async function getPersonalProductRecommendations(input: {
         );
 
       // Step 3: Final candidate score = cohort actor score * candidate event weight.
-      recommendations = scoreRelatedProducts(candidateEvents, cohortScores).slice(
-        0,
-        limit
-      );
+      recommendations = scoreRelatedProducts(candidateEvents, cohortScores)
+        .slice(0, limit)
+        .map((item) => ({
+          ...item,
+          explanation: buildBehaviorExplanation({
+            basis: "personal_behavior",
+            strongestEventType: item.strongestEventType,
+            supportingSignals: item.supportingSignals,
+            contributingActors: item.contributingActors,
+            seedProductIds,
+          }),
+        }));
     }
   }
 
@@ -511,7 +537,13 @@ function buildCohortActorScores(
 function scoreRelatedProducts(
   events: InteractionRow[],
   actorWeights: Map<ActorKey, number>
-): RelatedProductRecommendation[] {
+): Array<{
+  productId: string;
+  score: number;
+  supportingSignals: number;
+  strongestEventType: InteractionEventType;
+  contributingActors: number;
+}> {
   const scored = new Map<
     string,
     {
@@ -519,6 +551,7 @@ function scoreRelatedProducts(
       supportingSignals: number;
       strongestEventType: InteractionEventType;
       strongestWeight: number;
+      actors: Set<ActorKey>;
     }
   >();
 
@@ -544,12 +577,14 @@ function scoreRelatedProducts(
         supportingSignals: 1,
         strongestEventType: eventType,
         strongestWeight: eventWeight,
+        actors: new Set([actorKey]),
       });
       continue;
     }
 
     existing.score += nextScore;
     existing.supportingSignals += 1;
+    existing.actors.add(actorKey);
     if (eventWeight > existing.strongestWeight) {
       existing.strongestWeight = eventWeight;
       existing.strongestEventType = eventType;
@@ -562,6 +597,7 @@ function scoreRelatedProducts(
       score: roundScore(value.score),
       supportingSignals: value.supportingSignals,
       strongestEventType: value.strongestEventType,
+      contributingActors: value.actors.size,
     }))
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
@@ -589,6 +625,8 @@ async function getPopularProductFallback(input: {
   const rows = await db
     .select({
       productId: interactionEvents.productId,
+      userId: interactionEvents.userId,
+      sessionId: interactionEvents.sessionId,
       eventType: interactionEvents.eventType,
     })
     .from(interactionEvents)
@@ -597,7 +635,13 @@ async function getPopularProductFallback(input: {
 
   const scores = new Map<
     string,
-    { score: number; supportingSignals: number; strongestEventType: InteractionEventType; strongestWeight: number }
+    {
+      score: number;
+      supportingSignals: number;
+      strongestEventType: InteractionEventType;
+      strongestWeight: number;
+      actors: Set<ActorKey>;
+    }
   >();
   const excluded = new Set(input.excludeProductIds);
 
@@ -607,6 +651,7 @@ async function getPopularProductFallback(input: {
     }
     const eventType = row.eventType as InteractionEventType;
     const eventWeight = EVENT_WEIGHTS[eventType] ?? 1;
+    const actorKey = toActorKey(row);
     const existing = scores.get(row.productId);
     if (!existing) {
       scores.set(row.productId, {
@@ -614,12 +659,16 @@ async function getPopularProductFallback(input: {
         supportingSignals: 1,
         strongestEventType: eventType,
         strongestWeight: eventWeight,
+        actors: actorKey ? new Set([actorKey]) : new Set(),
       });
       continue;
     }
 
     existing.score += eventWeight;
     existing.supportingSignals += 1;
+    if (actorKey) {
+      existing.actors.add(actorKey);
+    }
     if (eventWeight > existing.strongestWeight) {
       existing.strongestWeight = eventWeight;
       existing.strongestEventType = eventType;
@@ -632,6 +681,12 @@ async function getPopularProductFallback(input: {
       score: roundScore(value.score),
       supportingSignals: value.supportingSignals,
       strongestEventType: value.strongestEventType,
+      explanation: buildBehaviorExplanation({
+        basis: "popular_fallback",
+        strongestEventType: value.strongestEventType,
+        supportingSignals: value.supportingSignals,
+        contributingActors: value.actors.size,
+      }),
     }))
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
@@ -655,6 +710,76 @@ function toActorKey(event: Pick<InteractionRow, "userId" | "sessionId">): ActorK
     return `s:${event.sessionId}`;
   }
   return null;
+}
+
+function buildBehaviorExplanation(input: {
+  basis: RecommendationBehaviorExplanation["basis"];
+  strongestEventType: InteractionEventType;
+  supportingSignals: number;
+  contributingActors: number;
+  seedProductIds?: string[];
+  anchorProductId?: string;
+}): RecommendationBehaviorExplanation {
+  const strongestEventLabel = formatEventType(input.strongestEventType);
+  const reasons = [
+    `Strongest behavioral signal is ${strongestEventLabel}.`,
+    `Built from ${input.supportingSignals} supporting interaction signals.`,
+  ];
+
+  if (input.contributingActors > 0) {
+    reasons.push(
+      `Backed by ${input.contributingActors} similar shopper or session profiles.`
+    );
+  }
+
+  if (input.basis === "related_behavior" && input.anchorProductId) {
+    reasons.unshift(
+      `Derived from shoppers who also interacted with product ${input.anchorProductId}.`
+    );
+  }
+
+  if (input.basis === "personal_behavior" && input.seedProductIds && input.seedProductIds.length > 0) {
+    reasons.unshift(
+      `Grounded in your strongest recent products: ${input.seedProductIds.slice(0, 3).join(", ")}.`
+    );
+  }
+
+  switch (input.basis) {
+    case "related_behavior":
+      return {
+        basis: input.basis,
+        summary: "Recommended from shoppers who also engaged with the current product.",
+        reasons: reasons.slice(0, 3),
+        contributingActors: input.contributingActors,
+        anchorProductId: input.anchorProductId,
+      };
+    case "personal_behavior":
+      return {
+        basis: input.basis,
+        summary: "Recommended from your activity history and similar shopper behavior.",
+        reasons: reasons.slice(0, 3),
+        contributingActors: input.contributingActors,
+        seedProductIds: input.seedProductIds,
+      };
+    case "popular_fallback":
+      return {
+        basis: input.basis,
+        summary: "Recommended from recent storefront momentum.",
+        reasons: reasons.slice(0, 3),
+        contributingActors: input.contributingActors,
+      };
+  }
+}
+
+function formatEventType(eventType: InteractionEventType): string {
+  switch (eventType) {
+    case "cart_add":
+      return "cart add";
+    case "wishlist_add":
+      return "wishlist add";
+    default:
+      return eventType;
+  }
 }
 
 function resolvePreferredActor(input: {

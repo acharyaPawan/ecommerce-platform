@@ -1,5 +1,8 @@
 import type { CatalogProduct } from "@/lib/types/catalog"
-import type { RelatedProductRecommendation } from "@/lib/types/analytics"
+import type {
+  RecommendationBehaviorExplanation,
+  RelatedProductRecommendation,
+} from "@/lib/types/analytics"
 import { getPrimaryPrice } from "@/lib/utils/catalog"
 
 export type RecommendationExplanation = {
@@ -39,13 +42,14 @@ export function rerankRelatedHybrid(
         collaborativeScore,
         contentScore,
         hybridScore,
-        explanation: buildRelatedExplanation({
+        explanation: mergeExplanations(
+          recommendation.explanation,
+          buildRelatedContentExplanation({
           anchor,
           candidate,
-          recommendation,
-          collaborativeScore,
           contentScore,
-        }),
+          })
+        ),
       }
     })
     .filter((item): item is RankedRecommendation => Boolean(item))
@@ -78,13 +82,14 @@ export function rerankPersonalizedHybrid(
         collaborativeScore,
         contentScore,
         hybridScore,
-        explanation: buildPersonalizedExplanation({
+        explanation: mergeExplanations(
+          recommendation.explanation,
+          buildPersonalizedContentExplanation({
           seedProducts,
           candidate,
-          recommendation,
-          collaborativeScore,
           contentScore,
-        }),
+          })
+        ),
       }
     })
     .filter((item): item is RankedRecommendation => Boolean(item))
@@ -250,14 +255,12 @@ function roundScore(value: number): number {
   return Math.round(Math.max(0, Math.min(1, value)) * 1000) / 1000
 }
 
-function buildRelatedExplanation(input: {
+function buildRelatedContentExplanation(input: {
   anchor: CatalogProduct
   candidate: CatalogProduct
-  recommendation: RelatedProductRecommendation
-  collaborativeScore: number
   contentScore: number
-}): RecommendationExplanation {
-  // Explanations are concise on purpose; UI surfaces only a short summary + a few reasons.
+}): RecommendationExplanation | null {
+  // Content explanations are additive now; the behavioral core comes from analytics-svc.
   const sharedCategories = input.candidate.categories
     .filter((category) =>
       input.anchor.categories.some((anchorCategory) => anchorCategory.id === category.id)
@@ -269,9 +272,7 @@ function buildRelatedExplanation(input: {
     tokenize(input.candidate.title)
   ).slice(0, 2)
 
-  const reasons = [
-    `Behavioral overlap is strongest on ${formatEventType(input.recommendation.strongestEventType)} signals.`,
-  ]
+  const reasons: string[] = []
 
   if (sharedCategories.length > 0) {
     reasons.push(`Shares categories with ${input.anchor.title}: ${sharedCategories.join(", ")}.`)
@@ -290,26 +291,24 @@ function buildRelatedExplanation(input: {
     reasons.push("Sits in a similar price range.")
   }
 
-  const summaryParts = [
-    `Recommended because shoppers who engaged with ${input.anchor.title} also interacted with this item.`,
-  ]
-  if (input.contentScore >= 0.45) {
-    summaryParts.push("It also matches closely on catalog attributes.")
+  if (reasons.length === 0) {
+    return null
   }
 
   return {
-    summary: summaryParts.join(" "),
+    summary:
+      input.contentScore >= 0.45
+        ? "It also matches closely on catalog attributes."
+        : "It also shares some catalog traits with the current product.",
     reasons: reasons.slice(0, 3),
   }
 }
 
-function buildPersonalizedExplanation(input: {
+function buildPersonalizedContentExplanation(input: {
   seedProducts: CatalogProduct[]
   candidate: CatalogProduct
-  recommendation: RelatedProductRecommendation
-  collaborativeScore: number
   contentScore: number
-}): RecommendationExplanation {
+}): RecommendationExplanation | null {
   // Re-score candidate against user seeds to provide human-readable "closest to" context.
   const relatedSeeds = input.seedProducts
     .map((seed) => ({
@@ -320,11 +319,7 @@ function buildPersonalizedExplanation(input: {
     .sort((a, b) => b.similarity - a.similarity)
     .slice(0, 2)
 
-  const reasons = [
-    `Behavioral match comes from your history and similar shoppers/sessions, strongest on ${formatEventType(
-      input.recommendation.strongestEventType
-    )}.`,
-  ]
+  const reasons: string[] = []
 
   if (relatedSeeds.length > 0) {
     reasons.push(
@@ -345,27 +340,33 @@ function buildPersonalizedExplanation(input: {
     reasons.push("Fits your recent price range.")
   }
 
-  const summary =
-    relatedSeeds.length > 0
-      ? `Recommended because it lines up with your activity on ${relatedSeeds
-          .map((entry) => entry.product.title)
-          .join(" and ")} and also appears in similar shopper behavior.`
-      : "Recommended from your recent activity pattern and similar shopper behavior."
+  if (reasons.length === 0) {
+    return null
+  }
 
   return {
-    summary,
+    summary:
+      input.contentScore >= 0.45
+        ? "It also aligns closely with the products in your recent history."
+        : "It also shares some traits with products from your recent history.",
     reasons: reasons.slice(0, 3),
   }
 }
 
-function formatEventType(eventType: RelatedProductRecommendation["strongestEventType"]): string {
-  switch (eventType) {
-    case "cart_add":
-      return "cart add"
-    case "wishlist_add":
-      return "wishlist"
-    default:
-      return eventType
+function mergeExplanations(
+  behavior: RecommendationBehaviorExplanation,
+  content: RecommendationExplanation | null
+): RecommendationExplanation {
+  if (!content) {
+    return {
+      summary: behavior.summary,
+      reasons: behavior.reasons,
+    }
+  }
+
+  return {
+    summary: `${behavior.summary} ${content.summary}`.trim(),
+    reasons: [...behavior.reasons, ...content.reasons].slice(0, 4),
   }
 }
 
