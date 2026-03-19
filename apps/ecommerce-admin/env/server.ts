@@ -20,6 +20,8 @@ const serviceEnvShape = {
   SERVICE_PAYMENTS_READ_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
   SERVICE_FULFILLMENT_URL: z.string().url().optional(),
   SERVICE_FULFILLMENT_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
+  SERVICE_ANALYTICS_URL: z.string().url().optional(),
+  SERVICE_ANALYTICS_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
 };
 
 export const env = createEnv({

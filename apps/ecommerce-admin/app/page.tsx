@@ -1,11 +1,13 @@
 import Link from "next/link"
 
 import { InventoryDashboard } from "@/components/inventory-dashboard"
+import { RecommendationInspector } from "@/components/recommendation-inspector"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { formatRelativeTimeFromNow } from "@/lib/format"
 import { getInventoryDashboardData } from "@/lib/server/dashboard-data"
+import { getRecommendationInspectorData } from "@/lib/server/recommendation-insights"
 import type { CatalogProductStatus } from "@/lib/types/catalog"
 import { authClient } from "@/lib/server/auth-client"
 import logger from "@/lib/server/logger"
@@ -71,6 +73,7 @@ export default async function Page({ searchParams }: PageProps) {
     q: query,
     status: normalizedStatus,
   })
+  const recommendationInspectorData = await getRecommendationInspectorData()
 
   return (
     <main className="space-y-8 pb-12">
@@ -91,6 +94,7 @@ export default async function Page({ searchParams }: PageProps) {
       </header>
 
       <InventoryDashboard data={dashboardData} />
+      <RecommendationInspector data={recommendationInspectorData} />
     </main>
   )
 }

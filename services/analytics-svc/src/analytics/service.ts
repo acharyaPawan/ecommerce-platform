@@ -66,6 +66,36 @@ export type RecommendationDiagnostics = {
   contributingActors: number;
 };
 
+export type RecommendationInspectionSnapshot = {
+  generatedAt: string;
+  lookbackDays: number;
+  sampleAnchorCount: number;
+  metrics: {
+    totalInteractions: number;
+    uniqueUsers: number;
+    uniqueSessions: number;
+    uniqueActors: number;
+    uniqueProducts: number;
+    eventTypeBreakdown: Record<InteractionEventType, number>;
+    recommendationCount: number;
+    collaborativeCount: number;
+    fallbackCount: number;
+    lowSupportCount: number;
+    diversifiedCount: number;
+    fallbackRate: number;
+    lowSupportRate: number;
+    diversifiedRate: number;
+    stageBreakdown: Record<RecommendationDiagnostics["selectionStage"], number>;
+  };
+  anchors: RecommendationInspectionAnchor[];
+};
+
+export type RecommendationInspectionAnchor = {
+  productId: string;
+  interactionCount: number;
+  recommendations: RelatedProductRecommendation[];
+};
+
 type ActorKey = `u:${string}` | `s:${string}`;
 
 type InteractionRow = Pick<
@@ -423,6 +453,115 @@ export async function getPersonalProductRecommendations(input: {
   return {
     items: [...recommendations, ...fallback].slice(0, limit),
     seedProductIds,
+  };
+}
+
+export async function getRecommendationInspectionSnapshot(input?: {
+  lookbackDays?: number;
+  sampleAnchorLimit?: number;
+  recommendationLimit?: number;
+}): Promise<RecommendationInspectionSnapshot> {
+  const lookbackDays = clamp(input?.lookbackDays ?? 30, 7, 365);
+  const sampleAnchorLimit = clamp(input?.sampleAnchorLimit ?? 5, 1, 12);
+  const recommendationLimit = clamp(input?.recommendationLimit ?? 6, 1, 12);
+  const since = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000);
+
+  const recentEvents = await db
+    .select({
+      productId: interactionEvents.productId,
+      userId: interactionEvents.userId,
+      sessionId: interactionEvents.sessionId,
+      eventType: interactionEvents.eventType,
+      occurredAt: interactionEvents.occurredAt,
+    })
+    .from(interactionEvents)
+    .where(gte(interactionEvents.occurredAt, since));
+
+  const eventTypeBreakdown = createEventTypeCounter();
+  const productCounts = new Map<string, number>();
+  const users = new Set<string>();
+  const sessions = new Set<string>();
+  const actors = new Set<ActorKey>();
+
+  for (const event of recentEvents) {
+    const eventType = event.eventType as InteractionEventType;
+    eventTypeBreakdown[eventType] += 1;
+    productCounts.set(event.productId, (productCounts.get(event.productId) ?? 0) + 1);
+
+    if (event.userId) {
+      users.add(event.userId);
+    }
+    if (event.sessionId) {
+      sessions.add(event.sessionId);
+    }
+    const actorKey = toActorKey(event);
+    if (actorKey) {
+      actors.add(actorKey);
+    }
+  }
+
+  const anchorCandidates = Array.from(productCounts.entries())
+    .sort((a, b) => {
+      if (b[1] !== a[1]) return b[1] - a[1];
+      return a[0].localeCompare(b[0]);
+    })
+    .slice(0, sampleAnchorLimit);
+
+  const anchors: RecommendationInspectionAnchor[] = await Promise.all(
+    anchorCandidates.map(async ([productId, interactionCount]) => ({
+      productId,
+      interactionCount,
+      recommendations: await getRelatedProductRecommendations({
+        productId,
+        limit: recommendationLimit,
+        lookbackDays,
+      }),
+    }))
+  );
+
+  const recommendationItems = anchors.flatMap((anchor) => anchor.recommendations);
+  const stageBreakdown = createSelectionStageCounter();
+
+  for (const item of recommendationItems) {
+    stageBreakdown[item.diagnostics.selectionStage] += 1;
+  }
+
+  const collaborativeCount = recommendationItems.filter(
+    (item) => item.diagnostics.source === "collaborative"
+  ).length;
+  const fallbackCount = recommendationItems.filter(
+    (item) => item.diagnostics.fallbackUsed
+  ).length;
+  const lowSupportCount = recommendationItems.filter(
+    (item) => !item.diagnostics.actorThresholdPassed
+  ).length;
+  const diversifiedCount = recommendationItems.filter(
+    (item) => item.diagnostics.diversifiedBySignal
+  ).length;
+  const recommendationCount = recommendationItems.length;
+
+  return {
+    generatedAt: new Date().toISOString(),
+    lookbackDays,
+    sampleAnchorCount: anchors.length,
+    metrics: {
+      totalInteractions: recentEvents.length,
+      uniqueUsers: users.size,
+      uniqueSessions: sessions.size,
+      uniqueActors: actors.size,
+      uniqueProducts: productCounts.size,
+      eventTypeBreakdown,
+      recommendationCount,
+      collaborativeCount,
+      fallbackCount,
+      lowSupportCount,
+      diversifiedCount,
+      fallbackRate: toRate(fallbackCount, recommendationCount),
+      lowSupportRate: toRate(lowSupportCount, recommendationCount),
+      diversifiedRate: toRate(diversifiedCount, recommendationCount),
+      stageBreakdown,
+    },
+    anchors,
   };
 }
 
@@ -959,4 +1098,36 @@ function roundScore(value: number): number {
  */
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function createEventTypeCounter(): Record<InteractionEventType, number> {
+  return {
+    view: 0,
+    click: 0,
+    wishlist_add: 0,
+    cart_add: 0,
+    purchase: 0,
+    rating: 0,
+    review: 0,
+  };
+}
+
+function createSelectionStageCounter(): Record<
+  RecommendationDiagnostics["selectionStage"],
+  number
+> {
+  return {
+    primary_diversified: 0,
+    primary_relaxed: 0,
+    low_support_backfill: 0,
+    popular_backfill: 0,
+  };
+}
+
+function toRate(count: number, total: number): number {
+  if (total <= 0) {
+    return 0;
+  }
+
+  return roundScore((count / total) * 100);
 }

@@ -92,4 +92,59 @@ describe("analytics-svc app", () => {
     expect(res.status).toBe(422);
     expect(recordInteraction).not.toHaveBeenCalled();
   });
+
+  it("returns a recommendation inspection snapshot", async () => {
+    const getRecommendationInspection = vi.fn(async () => ({
+      generatedAt: "2026-03-19T00:00:00.000Z",
+      lookbackDays: 30,
+      sampleAnchorCount: 1,
+      metrics: {
+        totalInteractions: 12,
+        uniqueUsers: 2,
+        uniqueSessions: 3,
+        uniqueActors: 5,
+        uniqueProducts: 4,
+        eventTypeBreakdown: {
+          view: 6,
+          click: 2,
+          wishlist_add: 1,
+          cart_add: 1,
+          purchase: 1,
+          rating: 1,
+          review: 0,
+        },
+        recommendationCount: 3,
+        collaborativeCount: 2,
+        fallbackCount: 1,
+        lowSupportCount: 1,
+        diversifiedCount: 2,
+        fallbackRate: 33.33,
+        lowSupportRate: 33.33,
+        diversifiedRate: 66.67,
+        stageBreakdown: {
+          primary_diversified: 2,
+          primary_relaxed: 0,
+          low_support_backfill: 0,
+          popular_backfill: 1,
+        },
+      },
+      anchors: [
+        {
+          productId: "prod_1",
+          interactionCount: 8,
+          recommendations: [],
+        },
+      ],
+    }));
+    const app = new Hono();
+    app.route(
+      "/api/analytics",
+      createAnalyticsRouter({ config: testConfig, getRecommendationInspection })
+    );
+
+    const res = await app.request("/api/analytics/recommendations/inspection");
+
+    expect(res.status).toBe(200);
+    expect(getRecommendationInspection).toHaveBeenCalled();
+  });
 });

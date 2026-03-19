@@ -13,22 +13,30 @@ import { interactionEventIngestSchema } from "@ecommerce/events";
 import type { AnalyticsServiceConfig } from "../config.js";
 import logger from "../logger.js";
 import {
+  getRecommendationInspectionSnapshot,
   getPersonalProductRecommendations,
   getRelatedProductRecommendations,
   recordInteractionEvent,
   resolveInteractionActor,
   type RecordInteractionInput,
   type RecordedInteractionEvent,
+  type RecommendationInspectionSnapshot,
 } from "../analytics/service.js";
 
 type AnalyticsRouterDeps = {
   config: AnalyticsServiceConfig;
   recordInteraction?: (input: RecordInteractionInput) => Promise<RecordedInteractionEvent>;
+  getRecommendationInspection?: (input?: {
+    lookbackDays?: number;
+    sampleAnchorLimit?: number;
+    recommendationLimit?: number;
+  }) => Promise<RecommendationInspectionSnapshot>;
 };
 
 export const createAnalyticsRouter = ({
   config,
   recordInteraction = recordInteractionEvent,
+  getRecommendationInspection = getRecommendationInspectionSnapshot,
 }: AnalyticsRouterDeps): Hono => {
   const router = new Hono();
   const verifyOptions = resolveVerifyAuthTokenOptions(config.auth);
@@ -72,6 +80,45 @@ export const createAnalyticsRouter = ({
     });
 
     return c.json(items);
+  });
+
+  router.get("/recommendations/inspection", async (c) => {
+    const lookbackDaysRaw = c.req.query("lookbackDays");
+    const parsedLookbackDays = lookbackDaysRaw ? Number(lookbackDaysRaw) : undefined;
+    const lookbackDays =
+      parsedLookbackDays && Number.isFinite(parsedLookbackDays) && parsedLookbackDays > 0
+        ? Math.trunc(parsedLookbackDays)
+        : undefined;
+
+    const sampleAnchorLimitRaw = c.req.query("sampleAnchorLimit");
+    const parsedSampleAnchorLimit = sampleAnchorLimitRaw
+      ? Number(sampleAnchorLimitRaw)
+      : undefined;
+    const sampleAnchorLimit =
+      parsedSampleAnchorLimit &&
+      Number.isFinite(parsedSampleAnchorLimit) &&
+      parsedSampleAnchorLimit > 0
+        ? Math.trunc(parsedSampleAnchorLimit)
+        : undefined;
+
+    const recommendationLimitRaw = c.req.query("recommendationLimit");
+    const parsedRecommendationLimit = recommendationLimitRaw
+      ? Number(recommendationLimitRaw)
+      : undefined;
+    const recommendationLimit =
+      parsedRecommendationLimit &&
+      Number.isFinite(parsedRecommendationLimit) &&
+      parsedRecommendationLimit > 0
+        ? Math.trunc(parsedRecommendationLimit)
+        : undefined;
+
+    const snapshot = await getRecommendationInspection({
+      lookbackDays,
+      sampleAnchorLimit,
+      recommendationLimit,
+    });
+
+    return c.json(snapshot);
   });
 
   router.post("/interactions", async (c) => {

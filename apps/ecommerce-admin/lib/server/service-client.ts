@@ -15,6 +15,7 @@ export type ServiceName =
   | "payments"
   | "paymentsRead"
   | "fulfillment"
+  | "analytics"
 
 type ServiceConfig = {
   url: string
@@ -31,6 +32,7 @@ const defaultServiceConfig: Record<ServiceName, ServiceConfig> = {
   payments: { url: "http://localhost:3007", timeoutMs: 800 },
   paymentsRead: { url: "http://localhost:3008", timeoutMs: 600 },
   fulfillment: { url: "http://localhost:3009", timeoutMs: 600 },
+  analytics: { url: "http://localhost:3010", timeoutMs: 10_000 },
 }
 
 const serviceEnvKeys: Record<
@@ -72,6 +74,10 @@ const serviceEnvKeys: Record<
   fulfillment: {
     url: "SERVICE_FULFILLMENT_URL",
     timeout: "SERVICE_FULFILLMENT_TIMEOUT_MS",
+  },
+  analytics: {
+    url: "SERVICE_ANALYTICS_URL",
+    timeout: "SERVICE_ANALYTICS_TIMEOUT_MS",
   },
 }
 
