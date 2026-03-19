@@ -1,15 +1,15 @@
 import Link from "next/link"
 
 import { ProductCard } from "@/components/product-card"
+import type { RankedRecommendation } from "@/lib/recommendations/hybrid"
 import type { CatalogProduct } from "@/lib/types/catalog"
-import type { RelatedProductRecommendation } from "@/lib/types/analytics"
 
 export function RelatedProductsSection({
   products,
   recommendations,
 }: {
   products: CatalogProduct[]
-  recommendations: RelatedProductRecommendation[]
+  recommendations: RankedRecommendation[]
 }) {
   if (products.length === 0) {
     return null
@@ -44,6 +44,9 @@ export function RelatedProductsSection({
               <ProductCard product={product} />
               {signal ? (
                 <div className="rounded-2xl border border-[color:var(--line)] bg-white/70 px-4 py-3 text-xs text-muted">
+                  <p className="font-medium text-[color:var(--ink)]">
+                    {signal.explanation.summary}
+                  </p>
                   <p>
                     Signal: <span className="font-semibold text-[color:var(--ink)]">{signal.strongestEventType}</span>
                   </p>
@@ -53,6 +56,11 @@ export function RelatedProductsSection({
                       {signal.supportingSignals}
                     </span>
                   </p>
+                  <ul className="mt-2 space-y-1">
+                    {signal.explanation.reasons.map((reason) => (
+                      <li key={reason}>• {reason}</li>
+                    ))}
+                  </ul>
                 </div>
               ) : null}
             </div>

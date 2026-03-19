@@ -2,10 +2,16 @@ import type { CatalogProduct } from "@/lib/types/catalog"
 import type { RelatedProductRecommendation } from "@/lib/types/analytics"
 import { getPrimaryPrice } from "@/lib/utils/catalog"
 
-type RankedRecommendation = RelatedProductRecommendation & {
+export type RecommendationExplanation = {
+  summary: string
+  reasons: string[]
+}
+
+export type RankedRecommendation = RelatedProductRecommendation & {
   hybridScore: number
   contentScore: number
   collaborativeScore: number
+  explanation: RecommendationExplanation
 }
 
 export function rerankRelatedHybrid(
@@ -13,6 +19,7 @@ export function rerankRelatedHybrid(
   candidates: CatalogProduct[],
   recommendations: RelatedProductRecommendation[]
 ): RankedRecommendation[] {
+  // Normalize collaborative scores so they can be blended with content scores on the same 0..1 scale.
   const collaborativeScores = normalizeRecommendationScores(recommendations)
 
   return candidates
@@ -24,6 +31,7 @@ export function rerankRelatedHybrid(
 
       const collaborativeScore = collaborativeScores.get(candidate.id) ?? 0
       const contentScore = scoreContentSimilarity(anchor, candidate)
+      // Related lists prioritize collaborative evidence while still nudging toward catalog similarity.
       const hybridScore = collaborativeScore * 0.7 + contentScore * 0.3
 
       return {
@@ -31,6 +39,13 @@ export function rerankRelatedHybrid(
         collaborativeScore,
         contentScore,
         hybridScore,
+        explanation: buildRelatedExplanation({
+          anchor,
+          candidate,
+          recommendation,
+          collaborativeScore,
+          contentScore,
+        }),
       }
     })
     .filter((item): item is RankedRecommendation => Boolean(item))
@@ -43,6 +58,7 @@ export function rerankPersonalizedHybrid(
   recommendations: RelatedProductRecommendation[]
 ): RankedRecommendation[] {
   const collaborativeScores = normalizeRecommendationScores(recommendations)
+  // Build a lightweight preference profile from recent seed products.
   const profile = buildProfile(seedProducts)
 
   return candidates
@@ -54,6 +70,7 @@ export function rerankPersonalizedHybrid(
 
       const collaborativeScore = collaborativeScores.get(candidate.id) ?? 0
       const contentScore = scoreProfileSimilarity(profile, candidate)
+      // Personalized feeds lean a bit more on collaborative behavior than product attributes.
       const hybridScore = collaborativeScore * 0.75 + contentScore * 0.25
 
       return {
@@ -61,6 +78,13 @@ export function rerankPersonalizedHybrid(
         collaborativeScore,
         contentScore,
         hybridScore,
+        explanation: buildPersonalizedExplanation({
+          seedProducts,
+          candidate,
+          recommendation,
+          collaborativeScore,
+          contentScore,
+        }),
       }
     })
     .filter((item): item is RankedRecommendation => Boolean(item))
@@ -75,6 +99,7 @@ function normalizeRecommendationScores(
   const max = scores.length > 0 ? Math.max(...scores) : 1
   const range = max - min || 1
 
+  // Min-max normalization keeps ranking order while preventing raw score magnitude from dominating.
   return new Map(
     recommendations.map((item) => [item.productId, (item.score - min) / range])
   )
@@ -109,6 +134,7 @@ function buildProfile(products: CatalogProduct[]) {
   const tokens = new Map<string, number>()
   const prices: number[] = []
 
+  // Frequency maps act as implicit preferences: repeated exposure increases influence.
   for (const product of products) {
     for (const category of product.categories) {
       categories.set(category.id, (categories.get(category.id) ?? 0) + 1)
@@ -165,6 +191,7 @@ function weightedMembership(weights: Map<string, number>, values: string[]): num
     0
   )
 
+  // Cap at 1 so very long candidate token lists cannot exceed the expected scoring range.
   return roundScore(Math.min(matchedWeight / totalWeight, 1))
 }
 
@@ -221,4 +248,129 @@ function scorePriceToProfile(
 
 function roundScore(value: number): number {
   return Math.round(Math.max(0, Math.min(1, value)) * 1000) / 1000
+}
+
+function buildRelatedExplanation(input: {
+  anchor: CatalogProduct
+  candidate: CatalogProduct
+  recommendation: RelatedProductRecommendation
+  collaborativeScore: number
+  contentScore: number
+}): RecommendationExplanation {
+  // Explanations are concise on purpose; UI surfaces only a short summary + a few reasons.
+  const sharedCategories = input.candidate.categories
+    .filter((category) =>
+      input.anchor.categories.some((anchorCategory) => anchorCategory.id === category.id)
+    )
+    .map((category) => category.name)
+    .slice(0, 2)
+  const titleTokens = intersectTokens(
+    tokenize(input.anchor.title),
+    tokenize(input.candidate.title)
+  ).slice(0, 2)
+
+  const reasons = [
+    `Behavioral overlap is strongest on ${formatEventType(input.recommendation.strongestEventType)} signals.`,
+  ]
+
+  if (sharedCategories.length > 0) {
+    reasons.push(`Shares categories with ${input.anchor.title}: ${sharedCategories.join(", ")}.`)
+  }
+  if (
+    input.anchor.brand &&
+    input.candidate.brand &&
+    input.anchor.brand === input.candidate.brand
+  ) {
+    reasons.push(`Same brand family: ${input.anchor.brand}.`)
+  }
+  if (titleTokens.length > 0) {
+    reasons.push(`Similar product language: ${titleTokens.join(", ")}.`)
+  }
+  if (scorePriceSimilarity(input.anchor, input.candidate) >= 0.75) {
+    reasons.push("Sits in a similar price range.")
+  }
+
+  const summaryParts = [
+    `Recommended because shoppers who engaged with ${input.anchor.title} also interacted with this item.`,
+  ]
+  if (input.contentScore >= 0.45) {
+    summaryParts.push("It also matches closely on catalog attributes.")
+  }
+
+  return {
+    summary: summaryParts.join(" "),
+    reasons: reasons.slice(0, 3),
+  }
+}
+
+function buildPersonalizedExplanation(input: {
+  seedProducts: CatalogProduct[]
+  candidate: CatalogProduct
+  recommendation: RelatedProductRecommendation
+  collaborativeScore: number
+  contentScore: number
+}): RecommendationExplanation {
+  // Re-score candidate against user seeds to provide human-readable "closest to" context.
+  const relatedSeeds = input.seedProducts
+    .map((seed) => ({
+      product: seed,
+      similarity: scoreContentSimilarity(seed, input.candidate),
+    }))
+    .filter((entry) => entry.similarity > 0.2)
+    .sort((a, b) => b.similarity - a.similarity)
+    .slice(0, 2)
+
+  const reasons = [
+    `Behavioral match comes from your history and similar shoppers/sessions, strongest on ${formatEventType(
+      input.recommendation.strongestEventType
+    )}.`,
+  ]
+
+  if (relatedSeeds.length > 0) {
+    reasons.push(
+      `Closest to products you engaged with: ${relatedSeeds
+        .map((entry) => entry.product.title)
+        .join(", ")}.`
+    )
+  }
+  if (input.candidate.brand) {
+    const matchingBrandSeed = input.seedProducts.find(
+      (seed) => seed.brand && seed.brand === input.candidate.brand
+    )
+    if (matchingBrandSeed) {
+      reasons.push(`Matches a brand you already engaged with: ${input.candidate.brand}.`)
+    }
+  }
+  if (scorePriceToProfile(buildProfile(input.seedProducts).averagePrice, input.candidate) >= 0.75) {
+    reasons.push("Fits your recent price range.")
+  }
+
+  const summary =
+    relatedSeeds.length > 0
+      ? `Recommended because it lines up with your activity on ${relatedSeeds
+          .map((entry) => entry.product.title)
+          .join(" and ")} and also appears in similar shopper behavior.`
+      : "Recommended from your recent activity pattern and similar shopper behavior."
+
+  return {
+    summary,
+    reasons: reasons.slice(0, 3),
+  }
+}
+
+function formatEventType(eventType: RelatedProductRecommendation["strongestEventType"]): string {
+  switch (eventType) {
+    case "cart_add":
+      return "cart add"
+    case "wishlist_add":
+      return "wishlist"
+    default:
+      return eventType
+  }
+}
+
+function intersectTokens(left: string[], right: string[]): string[] {
+  // Deduplicate overlap terms so explanations avoid repetitive wording.
+  const rightSet = new Set(right)
+  return Array.from(new Set(left.filter((token) => rightSet.has(token))))
 }
