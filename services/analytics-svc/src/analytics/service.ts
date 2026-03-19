@@ -116,7 +116,7 @@ const EVENT_WEIGHTS: Record<InteractionEventType, number> = {
 const MIN_COLLABORATIVE_ACTOR_SUPPORT = 2;
 const MAX_ITEMS_PER_EVENT_TYPE_DURING_DIVERSIFICATION = 2;
 
-type RecommendationCandidate = {
+export type RecommendationCandidate = {
   productId: string;
   score: number;
   supportingSignals: number;
@@ -631,7 +631,7 @@ export function resolveInteractionActor(
  * Returns a Map where keys are actor identifiers (`u:${userId}` or `s:${sessionId}`)
  * and values are the highest event weight that actor performed on the anchor product.
  */
-function buildActorWeights(events: InteractionRow[]): Map<ActorKey, number> {
+export function buildActorWeights(events: InteractionRow[]): Map<ActorKey, number> {
   const actorWeights = new Map<ActorKey, number>();
 
   for (const event of events) {
@@ -650,7 +650,7 @@ function buildActorWeights(events: InteractionRow[]): Map<ActorKey, number> {
   return actorWeights;
 }
 
-function buildProductHistoryWeights(events: InteractionRow[]): Map<string, number> {
+export function buildProductHistoryWeights(events: InteractionRow[]): Map<string, number> {
   const weights = new Map<string, number>();
 
   for (const event of events) {
@@ -661,7 +661,7 @@ function buildProductHistoryWeights(events: InteractionRow[]): Map<string, numbe
   return weights;
 }
 
-function buildCohortActorScores(
+export function buildCohortActorScores(
   events: InteractionRow[],
   historyWeights: Map<string, number>
 ): Map<ActorKey, number> {
@@ -691,7 +691,7 @@ function buildCohortActorScores(
  * Returns products sorted by score (desc), then supporting signals (desc), then productId (asc).
  * Look upon this to learn more: 
  */
-function scoreRelatedProducts(
+export function scoreRelatedProducts(
   events: InteractionRow[],
   actorWeights: Map<ActorKey, number>
 ): RecommendationCandidate[] {
@@ -858,7 +858,7 @@ async function getPopularProductFallback(input: {
     .slice(0, input.limit);
 }
 
-function buildCollaborativeRecommendations(
+export function buildCollaborativeRecommendations(
   candidates: RecommendationCandidate[],
   input: {
     basis: RecommendationBehaviorExplanation["basis"];
@@ -1124,7 +1124,7 @@ function createSelectionStageCounter(): Record<
   };
 }
 
-function toRate(count: number, total: number): number {
+export function toRate(count: number, total: number): number {
   if (total <= 0) {
     return 0;
   }
