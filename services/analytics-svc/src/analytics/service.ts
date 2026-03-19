@@ -96,6 +96,11 @@ export type RecommendationInspectionAnchor = {
   recommendations: RelatedProductRecommendation[];
 };
 
+type RecommendationInspectionSummaryInput = {
+  recentEvents: InteractionRow[];
+  anchors: RecommendationInspectionAnchor[];
+};
+
 type ActorKey = `u:${string}` | `s:${string}`;
 
 type InteractionRow = Pick<
@@ -477,30 +482,9 @@ export async function getRecommendationInspectionSnapshot(input?: {
     .from(interactionEvents)
     .where(gte(interactionEvents.occurredAt, since));
 
-  const eventTypeBreakdown = createEventTypeCounter();
-  const productCounts = new Map<string, number>();
-  const users = new Set<string>();
-  const sessions = new Set<string>();
-  const actors = new Set<ActorKey>();
+  const eventSummary = summarizeInteractionWindow(recentEvents);
 
-  for (const event of recentEvents) {
-    const eventType = event.eventType as InteractionEventType;
-    eventTypeBreakdown[eventType] += 1;
-    productCounts.set(event.productId, (productCounts.get(event.productId) ?? 0) + 1);
-
-    if (event.userId) {
-      users.add(event.userId);
-    }
-    if (event.sessionId) {
-      sessions.add(event.sessionId);
-    }
-    const actorKey = toActorKey(event);
-    if (actorKey) {
-      actors.add(actorKey);
-    }
-  }
-
-  const anchorCandidates = Array.from(productCounts.entries())
+  const anchorCandidates = Array.from(eventSummary.productCounts.entries())
     .sort((a, b) => {
       if (b[1] !== a[1]) return b[1] - a[1];
       return a[0].localeCompare(b[0]);
@@ -519,48 +503,16 @@ export async function getRecommendationInspectionSnapshot(input?: {
     }))
   );
 
-  const recommendationItems = anchors.flatMap((anchor) => anchor.recommendations);
-  const stageBreakdown = createSelectionStageCounter();
-
-  for (const item of recommendationItems) {
-    stageBreakdown[item.diagnostics.selectionStage] += 1;
-  }
-
-  const collaborativeCount = recommendationItems.filter(
-    (item) => item.diagnostics.source === "collaborative"
-  ).length;
-  const fallbackCount = recommendationItems.filter(
-    (item) => item.diagnostics.fallbackUsed
-  ).length;
-  const lowSupportCount = recommendationItems.filter(
-    (item) => !item.diagnostics.actorThresholdPassed
-  ).length;
-  const diversifiedCount = recommendationItems.filter(
-    (item) => item.diagnostics.diversifiedBySignal
-  ).length;
-  const recommendationCount = recommendationItems.length;
+  const metrics = summarizeRecommendationInspection({
+    recentEvents,
+    anchors,
+  });
 
   return {
     generatedAt: new Date().toISOString(),
     lookbackDays,
     sampleAnchorCount: anchors.length,
-    metrics: {
-      totalInteractions: recentEvents.length,
-      uniqueUsers: users.size,
-      uniqueSessions: sessions.size,
-      uniqueActors: actors.size,
-      uniqueProducts: productCounts.size,
-      eventTypeBreakdown,
-      recommendationCount,
-      collaborativeCount,
-      fallbackCount,
-      lowSupportCount,
-      diversifiedCount,
-      fallbackRate: toRate(fallbackCount, recommendationCount),
-      lowSupportRate: toRate(lowSupportCount, recommendationCount),
-      diversifiedRate: toRate(diversifiedCount, recommendationCount),
-      stageBreakdown,
-    },
+    metrics,
     anchors,
   };
 }
@@ -1130,4 +1082,81 @@ export function toRate(count: number, total: number): number {
   }
 
   return roundScore((count / total) * 100);
+}
+
+export function summarizeRecommendationInspection(
+  input: RecommendationInspectionSummaryInput
+): RecommendationInspectionSnapshot["metrics"] {
+  const eventSummary = summarizeInteractionWindow(input.recentEvents);
+  const recommendationItems = input.anchors.flatMap((anchor) => anchor.recommendations);
+  const stageBreakdown = createSelectionStageCounter();
+
+  for (const item of recommendationItems) {
+    stageBreakdown[item.diagnostics.selectionStage] += 1;
+  }
+
+  const collaborativeCount = recommendationItems.filter(
+    (item) => item.diagnostics.source === "collaborative"
+  ).length;
+  const fallbackCount = recommendationItems.filter(
+    (item) => item.diagnostics.fallbackUsed
+  ).length;
+  const lowSupportCount = recommendationItems.filter(
+    (item) => !item.diagnostics.actorThresholdPassed
+  ).length;
+  const diversifiedCount = recommendationItems.filter(
+    (item) => item.diagnostics.diversifiedBySignal
+  ).length;
+  const recommendationCount = recommendationItems.length;
+
+  return {
+    totalInteractions: input.recentEvents.length,
+    uniqueUsers: eventSummary.users.size,
+    uniqueSessions: eventSummary.sessions.size,
+    uniqueActors: eventSummary.actors.size,
+    uniqueProducts: eventSummary.productCounts.size,
+    eventTypeBreakdown: eventSummary.eventTypeBreakdown,
+    recommendationCount,
+    collaborativeCount,
+    fallbackCount,
+    lowSupportCount,
+    diversifiedCount,
+    fallbackRate: toRate(fallbackCount, recommendationCount),
+    lowSupportRate: toRate(lowSupportCount, recommendationCount),
+    diversifiedRate: toRate(diversifiedCount, recommendationCount),
+    stageBreakdown,
+  };
+}
+
+function summarizeInteractionWindow(events: InteractionRow[]) {
+  const eventTypeBreakdown = createEventTypeCounter();
+  const productCounts = new Map<string, number>();
+  const users = new Set<string>();
+  const sessions = new Set<string>();
+  const actors = new Set<ActorKey>();
+
+  for (const event of events) {
+    const eventType = event.eventType as InteractionEventType;
+    eventTypeBreakdown[eventType] += 1;
+    productCounts.set(event.productId, (productCounts.get(event.productId) ?? 0) + 1);
+
+    if (event.userId) {
+      users.add(event.userId);
+    }
+    if (event.sessionId) {
+      sessions.add(event.sessionId);
+    }
+    const actorKey = toActorKey(event);
+    if (actorKey) {
+      actors.add(actorKey);
+    }
+  }
+
+  return {
+    eventTypeBreakdown,
+    productCounts,
+    users,
+    sessions,
+    actors,
+  };
 }

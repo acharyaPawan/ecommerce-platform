@@ -6,6 +6,7 @@ import {
   buildCohortActorScores,
   buildProductHistoryWeights,
   scoreRelatedProducts,
+  summarizeRecommendationInspection,
   toRate,
 } from "../../src/analytics/service.js";
 
@@ -238,5 +239,172 @@ describe("rate helpers", () => {
   it("rounds rates to two decimals", () => {
     expect(toRate(1, 3)).toBe(33.33);
     expect(toRate(2, 3)).toBe(66.67);
+  });
+});
+
+describe("inspection summarization", () => {
+  it("returns stable zeroed metrics for sparse windows with no recommendations", () => {
+    const metrics = summarizeRecommendationInspection({
+      recentEvents: [
+        {
+          productId: "prod_lonely",
+          userId: null,
+          sessionId: "sess_1",
+          eventType: "view",
+          occurredAt: new Date("2026-03-19T00:00:00.000Z"),
+        },
+      ],
+      anchors: [
+        {
+          productId: "prod_lonely",
+          interactionCount: 1,
+          recommendations: [],
+        },
+      ],
+    });
+
+    expect(metrics.totalInteractions).toBe(1);
+    expect(metrics.uniqueActors).toBe(1);
+    expect(metrics.uniqueProducts).toBe(1);
+    expect(metrics.recommendationCount).toBe(0);
+    expect(metrics.fallbackRate).toBe(0);
+    expect(metrics.lowSupportRate).toBe(0);
+    expect(metrics.diversifiedRate).toBe(0);
+    expect(metrics.stageBreakdown).toEqual({
+      primary_diversified: 0,
+      primary_relaxed: 0,
+      low_support_backfill: 0,
+      popular_backfill: 0,
+    });
+  });
+
+  it("captures fallback-heavy and mixed-stage recommendation windows accurately", () => {
+    const metrics = summarizeRecommendationInspection({
+      recentEvents: [
+        {
+          productId: "anchor_1",
+          userId: "user_1",
+          sessionId: null,
+          eventType: "purchase",
+          occurredAt: new Date("2026-03-19T00:00:00.000Z"),
+        },
+        {
+          productId: "anchor_2",
+          userId: null,
+          sessionId: "sess_1",
+          eventType: "view",
+          occurredAt: new Date("2026-03-19T00:01:00.000Z"),
+        },
+        {
+          productId: "anchor_2",
+          userId: null,
+          sessionId: "sess_2",
+          eventType: "click",
+          occurredAt: new Date("2026-03-19T00:02:00.000Z"),
+        },
+      ],
+      anchors: [
+        {
+          productId: "anchor_1",
+          interactionCount: 1,
+          recommendations: [
+            {
+              productId: "prod_a",
+              score: 12,
+              supportingSignals: 4,
+              strongestEventType: "purchase",
+              explanation: {
+                basis: "related_behavior",
+                summary: "Recommended from shoppers who also engaged with the current product.",
+                reasons: [],
+                contributingActors: 3,
+                anchorProductId: "anchor_1",
+              },
+              diagnostics: {
+                source: "collaborative",
+                selectionStage: "primary_diversified",
+                rawBehaviorScore: 12,
+                fallbackUsed: false,
+                actorThresholdPassed: true,
+                diversifiedBySignal: true,
+                contributingActors: 3,
+              },
+            },
+            {
+              productId: "prod_b",
+              score: 7,
+              supportingSignals: 2,
+              strongestEventType: "view",
+              explanation: {
+                basis: "popular_fallback",
+                summary: "Recommended from recent storefront momentum.",
+                reasons: [],
+                contributingActors: 1,
+              },
+              diagnostics: {
+                source: "popular_fallback",
+                selectionStage: "popular_backfill",
+                rawBehaviorScore: 7,
+                fallbackUsed: true,
+                actorThresholdPassed: false,
+                diversifiedBySignal: false,
+                contributingActors: 1,
+              },
+            },
+          ],
+        },
+        {
+          productId: "anchor_2",
+          interactionCount: 2,
+          recommendations: [
+            {
+              productId: "prod_c",
+              score: 5,
+              supportingSignals: 1,
+              strongestEventType: "click",
+              explanation: {
+                basis: "personal_behavior",
+                summary: "Recommended from your activity history and similar shopper behavior.",
+                reasons: [],
+                contributingActors: 1,
+                seedProductIds: ["anchor_2"],
+              },
+              diagnostics: {
+                source: "collaborative",
+                selectionStage: "low_support_backfill",
+                rawBehaviorScore: 5,
+                fallbackUsed: false,
+                actorThresholdPassed: false,
+                diversifiedBySignal: false,
+                contributingActors: 1,
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(metrics.totalInteractions).toBe(3);
+    expect(metrics.uniqueUsers).toBe(1);
+    expect(metrics.uniqueSessions).toBe(2);
+    expect(metrics.uniqueActors).toBe(3);
+    expect(metrics.uniqueProducts).toBe(2);
+    expect(metrics.eventTypeBreakdown.purchase).toBe(1);
+    expect(metrics.eventTypeBreakdown.view).toBe(1);
+    expect(metrics.eventTypeBreakdown.click).toBe(1);
+    expect(metrics.recommendationCount).toBe(3);
+    expect(metrics.collaborativeCount).toBe(2);
+    expect(metrics.fallbackCount).toBe(1);
+    expect(metrics.lowSupportCount).toBe(2);
+    expect(metrics.diversifiedCount).toBe(1);
+    expect(metrics.fallbackRate).toBe(33.33);
+    expect(metrics.lowSupportRate).toBe(66.67);
+    expect(metrics.diversifiedRate).toBe(33.33);
+    expect(metrics.stageBreakdown).toEqual({
+      primary_diversified: 1,
+      primary_relaxed: 0,
+      low_support_backfill: 1,
+      popular_backfill: 1,
+    });
   });
 });
