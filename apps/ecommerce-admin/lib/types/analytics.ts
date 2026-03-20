@@ -69,3 +69,24 @@ export type RecommendationInspectionSnapshot = {
     recommendations: RelatedProductRecommendation[]
   }>
 }
+
+export type CategoryDemandForecast = {
+  categoryId: string
+  categoryName: string
+  totalObservedUnits: number
+  avgDailyUnits: number
+  recentWindowUnits: number
+  previousWindowUnits: number
+  trendPct: number
+  projectedUnits: number
+  confidence: "high" | "medium" | "low"
+  history: Array<{ date: string; units: number }>
+  forecast: Array<{ date: string; units: number }>
+}
+
+export type CategoryForecastSnapshot = {
+  generatedAt: string
+  lookbackDays: number
+  horizonDays: number
+  categories: CategoryDemandForecast[]
+}

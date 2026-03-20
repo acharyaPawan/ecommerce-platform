@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   applyRecommendationGuardrails,
+  buildCategoryDemandForecasts,
   buildActorWeights,
   buildCollaborativeRecommendations,
   buildCohortActorScores,
   buildProductHistoryWeights,
+  forecastCategoryDemandFromSeries,
   scoreRelatedProducts,
   summarizeRecommendationInspection,
   toRate,
@@ -406,5 +408,70 @@ describe("inspection summarization", () => {
       low_support_backfill: 1,
       popular_backfill: 1,
     });
+  });
+});
+
+describe("category forecasting", () => {
+  it("forecasts upward demand from stronger recent windows", () => {
+    const forecast = forecastCategoryDemandFromSeries(
+      {
+        categoryId: "cat_home",
+        categoryName: "Home",
+        series: [
+          { date: "2026-03-01", units: 0 },
+          { date: "2026-03-02", units: 1 },
+          { date: "2026-03-03", units: 1 },
+          { date: "2026-03-04", units: 2 },
+          { date: "2026-03-05", units: 2 },
+          { date: "2026-03-06", units: 2 },
+          { date: "2026-03-07", units: 2 },
+          { date: "2026-03-08", units: 3 },
+          { date: "2026-03-09", units: 3 },
+          { date: "2026-03-10", units: 4 },
+          { date: "2026-03-11", units: 4 },
+          { date: "2026-03-12", units: 4 },
+          { date: "2026-03-13", units: 5 },
+          { date: "2026-03-14", units: 5 },
+        ],
+      },
+      { horizonDays: 14 }
+    );
+
+    expect(forecast.categoryId).toBe("cat_home");
+    expect(forecast.recentWindowUnits).toBe(28);
+    expect(forecast.previousWindowUnits).toBe(10);
+    expect(forecast.trendPct).toBe(180);
+    expect(forecast.projectedUnits).toBeGreaterThan(56);
+    expect(forecast.confidence).toBe("high");
+    expect(forecast.forecast).toHaveLength(14);
+  });
+
+  it("keeps sparse category histories at low confidence", () => {
+    const forecasts = buildCategoryDemandForecasts(
+      [
+        {
+          categoryId: "cat_wellness",
+          categoryName: "Wellness",
+          bucket: "2026-03-18",
+          units: 2,
+        },
+        {
+          categoryId: "cat_wellness",
+          categoryName: "Wellness",
+          bucket: "2026-03-19",
+          units: 1,
+        },
+      ],
+      {
+        lookbackDays: 14,
+        horizonDays: 7,
+      }
+    );
+
+    expect(forecasts).toHaveLength(1);
+    expect(forecasts[0]?.totalObservedUnits).toBe(3);
+    expect(forecasts[0]?.confidence).toBe("low");
+    expect(forecasts[0]?.history).toHaveLength(14);
+    expect(forecasts[0]?.forecast).toHaveLength(7);
   });
 });

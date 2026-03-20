@@ -1,5 +1,6 @@
 import Link from "next/link"
 
+import { CategoryForecastPanel } from "@/components/category-forecast-panel"
 import { InventoryDashboard } from "@/components/inventory-dashboard"
 import { RecommendationInspector } from "@/components/recommendation-inspector"
 import { Button } from "@/components/ui/button"
@@ -7,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { formatRelativeTimeFromNow } from "@/lib/format"
 import { getInventoryDashboardData } from "@/lib/server/dashboard-data"
+import { getForecastInspectorData } from "@/lib/server/forecast-insights"
 import { getRecommendationInspectorData } from "@/lib/server/recommendation-insights"
 import type { CatalogProductStatus } from "@/lib/types/catalog"
 import { authClient } from "@/lib/server/auth-client"
@@ -74,6 +76,7 @@ export default async function Page({ searchParams }: PageProps) {
     status: normalizedStatus,
   })
   const recommendationInspectorData = await getRecommendationInspectorData()
+  const forecastInspectorData = await getForecastInspectorData()
 
   return (
     <main className="space-y-8 pb-12">
@@ -94,6 +97,7 @@ export default async function Page({ searchParams }: PageProps) {
       </header>
 
       <InventoryDashboard data={dashboardData} />
+      <CategoryForecastPanel data={forecastInspectorData} />
       <RecommendationInspector data={recommendationInspectorData} />
     </main>
   )

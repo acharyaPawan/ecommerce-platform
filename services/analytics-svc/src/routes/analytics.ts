@@ -13,11 +13,13 @@ import { interactionEventIngestSchema } from "@ecommerce/events";
 import type { AnalyticsServiceConfig } from "../config.js";
 import logger from "../logger.js";
 import {
+  getCategoryForecastSnapshot,
   getRecommendationInspectionSnapshot,
   getPersonalProductRecommendations,
   getRelatedProductRecommendations,
   recordInteractionEvent,
   resolveInteractionActor,
+  type CategoryForecastSnapshot,
   type RecordInteractionInput,
   type RecordedInteractionEvent,
   type RecommendationInspectionSnapshot,
@@ -31,12 +33,18 @@ type AnalyticsRouterDeps = {
     sampleAnchorLimit?: number;
     recommendationLimit?: number;
   }) => Promise<RecommendationInspectionSnapshot>;
+  getCategoryForecasts?: (input?: {
+    lookbackDays?: number;
+    horizonDays?: number;
+    limit?: number;
+  }) => Promise<CategoryForecastSnapshot>;
 };
 
 export const createAnalyticsRouter = ({
   config,
   recordInteraction = recordInteractionEvent,
   getRecommendationInspection = getRecommendationInspectionSnapshot,
+  getCategoryForecasts = getCategoryForecastSnapshot,
 }: AnalyticsRouterDeps): Hono => {
   const router = new Hono();
   const verifyOptions = resolveVerifyAuthTokenOptions(config.auth);
@@ -116,6 +124,37 @@ export const createAnalyticsRouter = ({
       lookbackDays,
       sampleAnchorLimit,
       recommendationLimit,
+    });
+
+    return c.json(snapshot);
+  });
+
+  router.get("/forecasts/categories", async (c) => {
+    const lookbackDaysRaw = c.req.query("lookbackDays");
+    const parsedLookbackDays = lookbackDaysRaw ? Number(lookbackDaysRaw) : undefined;
+    const lookbackDays =
+      parsedLookbackDays && Number.isFinite(parsedLookbackDays) && parsedLookbackDays > 0
+        ? Math.trunc(parsedLookbackDays)
+        : undefined;
+
+    const horizonDaysRaw = c.req.query("horizonDays");
+    const parsedHorizonDays = horizonDaysRaw ? Number(horizonDaysRaw) : undefined;
+    const horizonDays =
+      parsedHorizonDays && Number.isFinite(parsedHorizonDays) && parsedHorizonDays > 0
+        ? Math.trunc(parsedHorizonDays)
+        : undefined;
+
+    const limitRaw = c.req.query("limit");
+    const parsedLimit = limitRaw ? Number(limitRaw) : undefined;
+    const limit =
+      parsedLimit && Number.isFinite(parsedLimit) && parsedLimit > 0
+        ? Math.trunc(parsedLimit)
+        : undefined;
+
+    const snapshot = await getCategoryForecasts({
+      lookbackDays,
+      horizonDays,
+      limit,
     });
 
     return c.json(snapshot);

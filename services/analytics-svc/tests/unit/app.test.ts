@@ -147,4 +147,37 @@ describe("analytics-svc app", () => {
     expect(res.status).toBe(200);
     expect(getRecommendationInspection).toHaveBeenCalled();
   });
+
+  it("returns a category forecast snapshot", async () => {
+    const getCategoryForecasts = vi.fn(async () => ({
+      generatedAt: "2026-03-20T00:00:00.000Z",
+      lookbackDays: 60,
+      horizonDays: 14,
+      categories: [
+        {
+          categoryId: "home",
+          categoryName: "Home",
+          totalObservedUnits: 24,
+          avgDailyUnits: 1.2,
+          recentWindowUnits: 10,
+          previousWindowUnits: 7,
+          trendPct: 42.86,
+          projectedUnits: 20,
+          confidence: "medium" as const,
+          history: [],
+          forecast: [],
+        },
+      ],
+    }));
+    const app = new Hono();
+    app.route(
+      "/api/analytics",
+      createAnalyticsRouter({ config: testConfig, getCategoryForecasts })
+    );
+
+    const res = await app.request("/api/analytics/forecasts/categories");
+
+    expect(res.status).toBe(200);
+    expect(getCategoryForecasts).toHaveBeenCalled();
+  });
 });

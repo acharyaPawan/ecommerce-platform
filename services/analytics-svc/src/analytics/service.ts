@@ -1,7 +1,8 @@
-import { and, desc, eq, gte, inArray, ne, notInArray, or } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, ne, notInArray, or, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import db from "../db/index.js";
 import { interactionEvents, interactionIngestionKeys } from "../db/schema.js";
+import { catalogCategories, catalogProductCategories } from "../db/external-schema.js";
 import type {
   InteractionEventIngest,
   InteractionEventSource,
@@ -94,6 +95,27 @@ export type RecommendationInspectionAnchor = {
   productId: string;
   interactionCount: number;
   recommendations: RelatedProductRecommendation[];
+};
+
+export type CategoryForecastSnapshot = {
+  generatedAt: string;
+  lookbackDays: number;
+  horizonDays: number;
+  categories: CategoryDemandForecast[];
+};
+
+export type CategoryDemandForecast = {
+  categoryId: string;
+  categoryName: string;
+  totalObservedUnits: number;
+  avgDailyUnits: number;
+  recentWindowUnits: number;
+  previousWindowUnits: number;
+  trendPct: number;
+  projectedUnits: number;
+  confidence: "high" | "medium" | "low";
+  history: Array<{ date: string; units: number }>;
+  forecast: Array<{ date: string; units: number }>;
 };
 
 type RecommendationInspectionSummaryInput = {
@@ -514,6 +536,67 @@ export async function getRecommendationInspectionSnapshot(input?: {
     sampleAnchorCount: anchors.length,
     metrics,
     anchors,
+  };
+}
+
+export async function getCategoryForecastSnapshot(input?: {
+  lookbackDays?: number;
+  horizonDays?: number;
+  limit?: number;
+}): Promise<CategoryForecastSnapshot> {
+  const lookbackDays = clamp(input?.lookbackDays ?? 60, 14, 365);
+  const horizonDays = clamp(input?.horizonDays ?? 14, 7, 60);
+  const limit = clamp(input?.limit ?? 6, 1, 24);
+  const since = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000);
+
+  const rows = await db
+    .select({
+      categoryId: catalogCategories.id,
+      categoryName: catalogCategories.name,
+      bucket: sql<string>`to_char(date_trunc('day', ${interactionEvents.occurredAt}), 'YYYY-MM-DD')`,
+      units: sql<number>`sum(coalesce(nullif(${interactionEvents.properties} ->> 'qty', '')::int, 1))`,
+    })
+    .from(interactionEvents)
+    .innerJoin(
+      catalogProductCategories,
+      eq(catalogProductCategories.productId, interactionEvents.productId)
+    )
+    .innerJoin(
+      catalogCategories,
+      eq(catalogCategories.id, catalogProductCategories.categoryId)
+    )
+    .where(
+      and(
+        eq(interactionEvents.eventType, "purchase"),
+        gte(interactionEvents.occurredAt, since)
+      )
+    )
+    .groupBy(
+      catalogCategories.id,
+      catalogCategories.name,
+      sql`date_trunc('day', ${interactionEvents.occurredAt})`
+    );
+
+  const categories = buildCategoryDemandForecasts(rows, {
+    lookbackDays,
+    horizonDays,
+  })
+    .sort((a, b) => {
+      if (b.projectedUnits !== a.projectedUnits) {
+        return b.projectedUnits - a.projectedUnits;
+      }
+      if (b.totalObservedUnits !== a.totalObservedUnits) {
+        return b.totalObservedUnits - a.totalObservedUnits;
+      }
+      return a.categoryName.localeCompare(b.categoryName);
+    })
+    .slice(0, limit);
+
+  return {
+    generatedAt: new Date().toISOString(),
+    lookbackDays,
+    horizonDays,
+    categories,
   };
 }
 
@@ -1128,6 +1211,122 @@ export function summarizeRecommendationInspection(
   };
 }
 
+export function buildCategoryDemandForecasts(
+  rows: Array<{
+    categoryId: string;
+    categoryName: string;
+    bucket: string;
+    units: number;
+  }>,
+  input: {
+    lookbackDays: number;
+    horizonDays: number;
+  }
+): CategoryDemandForecast[] {
+  const today = startOfUtcDay(new Date());
+  const dayKeys = Array.from({ length: input.lookbackDays }, (_, index) => {
+    const current = new Date(today);
+    current.setUTCDate(today.getUTCDate() - (input.lookbackDays - index - 1));
+    return formatDateKey(current);
+  });
+
+  const rowsByCategory = new Map<
+    string,
+    {
+      categoryName: string;
+      byDate: Map<string, number>;
+    }
+  >();
+
+  for (const row of rows) {
+    const existing = rowsByCategory.get(row.categoryId);
+    if (!existing) {
+      rowsByCategory.set(row.categoryId, {
+        categoryName: row.categoryName,
+        byDate: new Map([[row.bucket, row.units]]),
+      });
+      continue;
+    }
+
+    existing.byDate.set(row.bucket, (existing.byDate.get(row.bucket) ?? 0) + row.units);
+  }
+
+  return Array.from(rowsByCategory.entries()).map(([categoryId, value]) => {
+    const series = dayKeys.map((date) => ({
+      date,
+      units: value.byDate.get(date) ?? 0,
+    }));
+
+    return forecastCategoryDemandFromSeries(
+      {
+        categoryId,
+        categoryName: value.categoryName,
+        series,
+      },
+      { horizonDays: input.horizonDays }
+    );
+  });
+}
+
+export function forecastCategoryDemandFromSeries(
+  input: {
+    categoryId: string;
+    categoryName: string;
+    series: Array<{ date: string; units: number }>;
+  },
+  options: {
+    horizonDays: number;
+  }
+): CategoryDemandForecast {
+  const series = input.series;
+  const windowSize = Math.min(7, Math.max(series.length, 1));
+  const recentWindow = series.slice(-windowSize);
+  const previousWindow = series.slice(-windowSize * 2, -windowSize);
+
+  const totalObservedUnits = series.reduce((sum, point) => sum + point.units, 0);
+  const recentWindowUnits = recentWindow.reduce((sum, point) => sum + point.units, 0);
+  const previousWindowUnits = previousWindow.reduce((sum, point) => sum + point.units, 0);
+  const avgDailyUnits = roundScore(totalObservedUnits / Math.max(series.length, 1));
+  const recentAvg = recentWindowUnits / Math.max(recentWindow.length, 1);
+  const previousAvg = previousWindowUnits / Math.max(previousWindow.length, 1);
+  const rawTrend =
+    previousAvg > 0 ? ((recentAvg - previousAvg) / previousAvg) * 100 : recentAvg > 0 ? 100 : 0;
+  const trendPct = roundScore(rawTrend);
+  const boundedTrendMultiplier = 1 + Math.max(Math.min(rawTrend / 100, 1), -0.5) * 0.5;
+  const projectedDailyUnits = Math.max(recentAvg * boundedTrendMultiplier, 0);
+  const projectedUnits = Math.round(projectedDailyUnits * options.horizonDays);
+  const nonZeroDays = series.filter((point) => point.units > 0).length;
+
+  const forecastStart =
+    series.length > 0
+      ? addDays(new Date(`${series[series.length - 1]!.date}T00:00:00.000Z`), 1)
+      : startOfUtcDay(new Date());
+  const forecast = Array.from({ length: options.horizonDays }, (_, index) => {
+    const date = addDays(forecastStart, index);
+    return {
+      date: formatDateKey(date),
+      units: Math.max(Math.round(projectedDailyUnits), 0),
+    };
+  });
+
+  return {
+    categoryId: input.categoryId,
+    categoryName: input.categoryName,
+    totalObservedUnits,
+    avgDailyUnits,
+    recentWindowUnits,
+    previousWindowUnits,
+    trendPct,
+    projectedUnits,
+    confidence: classifyForecastConfidence({
+      totalObservedUnits,
+      nonZeroDays,
+    }),
+    history: series,
+    forecast,
+  };
+}
+
 function summarizeInteractionWindow(events: InteractionRow[]) {
   const eventTypeBreakdown = createEventTypeCounter();
   const productCounts = new Map<string, number>();
@@ -1159,4 +1358,33 @@ function summarizeInteractionWindow(events: InteractionRow[]) {
     sessions,
     actors,
   };
+}
+
+function classifyForecastConfidence(input: {
+  totalObservedUnits: number;
+  nonZeroDays: number;
+}): "high" | "medium" | "low" {
+  if (input.nonZeroDays >= 12 && input.totalObservedUnits >= 25) {
+    return "high";
+  }
+  if (input.nonZeroDays >= 7 && input.totalObservedUnits >= 10) {
+    return "medium";
+  }
+  return "low";
+}
+
+function startOfUtcDay(input: Date): Date {
+  return new Date(
+    Date.UTC(input.getUTCFullYear(), input.getUTCMonth(), input.getUTCDate())
+  );
+}
+
+function addDays(input: Date, days: number): Date {
+  const next = new Date(input);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function formatDateKey(input: Date): string {
+  return input.toISOString().slice(0, 10);
 }
