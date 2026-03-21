@@ -102,6 +102,12 @@ export type CustomerChurnRiskProfile = {
   name: string | null
   email: string | null
   confirmedOrders: number
+  lifetimeValueCents: number
+  averageOrderValueCents: number
+  valueBand: "high" | "medium" | "low"
+  topCategoryId: string | null
+  topCategoryName: string | null
+  topCategoryShare: number
   lastConfirmedOrderAt: string
   lastInteractionAt: string | null
   daysSinceOrder: number

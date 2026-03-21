@@ -6,7 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { formatNumber, formatRelativeTimeFromNow } from "@/lib/format"
+import { formatCurrency, formatNumber, formatRelativeTimeFromNow } from "@/lib/format"
 import type { CustomerChurnRiskSnapshot } from "@/lib/types/analytics"
 
 export function ChurnRiskPanel({
@@ -81,21 +81,44 @@ export function ChurnRiskPanel({
                   value={formatNumber(customer.confirmedOrders)}
                 />
                 <ChurnStat
-                  label="Days since order"
-                  value={formatNumber(customer.daysSinceOrder)}
+                  label="Avg order value"
+                  value={formatCurrency(customer.averageOrderValueCents / 100)}
                 />
                 <ChurnStat
-                  label="Days since activity"
-                  value={
-                    customer.daysSinceInteraction === null
-                      ? "N/A"
-                      : formatNumber(customer.daysSinceInteraction)
-                  }
+                  label="Lifetime value"
+                  value={formatCurrency(customer.lifetimeValueCents / 100)}
                 />
                 <ChurnStat
                   label="Last order"
                   value={formatRelativeTimeFromNow(customer.lastConfirmedOrderAt)}
                 />
+              </div>
+
+              <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={badgeVariantForValue(customer.valueBand)}>
+                    {customer.valueBand} value
+                  </Badge>
+                  {customer.topCategoryName ? (
+                    <Badge variant="outline">
+                      {customer.topCategoryName} focus {Math.round(customer.topCategoryShare * 100)}%
+                    </Badge>
+                  ) : null}
+                </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <ChurnStat
+                    label="Days since order"
+                    value={formatNumber(customer.daysSinceOrder)}
+                  />
+                  <ChurnStat
+                    label="Days since activity"
+                    value={
+                      customer.daysSinceInteraction === null
+                        ? "N/A"
+                        : formatNumber(customer.daysSinceInteraction)
+                    }
+                  />
+                </div>
               </div>
 
               <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
@@ -166,6 +189,17 @@ function badgeVariantForBand(band: "high" | "medium" | "low") {
   switch (band) {
     case "high":
       return "destructive" as const
+    case "medium":
+      return "secondary" as const
+    case "low":
+      return "outline" as const
+  }
+}
+
+function badgeVariantForValue(band: "high" | "medium" | "low") {
+  switch (band) {
+    case "high":
+      return "default" as const
     case "medium":
       return "secondary" as const
     case "low":

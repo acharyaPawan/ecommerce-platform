@@ -1,4 +1,4 @@
-import { pgSchema, text, timestamp } from "drizzle-orm/pg-core";
+import { jsonb, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
 
 const catalog = pgSchema("catalog");
 const auth = pgSchema("auth");
@@ -24,5 +24,7 @@ export const orderRecords = orders.table("orders", {
   id: text("id").primaryKey(),
   status: text("status").notNull(),
   userId: text("user_id"),
+  cartSnapshot: jsonb("cart_snapshot").notNull(),
+  totals: jsonb("totals").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 });
