@@ -96,3 +96,26 @@ export type CategoryForecastSnapshot = {
   horizonDays: number
   categories: CategoryDemandForecast[]
 }
+
+export type CustomerChurnRiskProfile = {
+  userId: string
+  name: string | null
+  email: string | null
+  confirmedOrders: number
+  lastConfirmedOrderAt: string
+  lastInteractionAt: string | null
+  daysSinceOrder: number
+  daysSinceInteraction: number | null
+  churnScore: number
+  churnBand: "high" | "medium" | "low"
+  drivers: string[]
+  recommendation: string
+}
+
+export type CustomerChurnRiskSnapshot = {
+  generatedAt: string
+  customerCount: number
+  highRiskCount: number
+  averageScore: number
+  customers: CustomerChurnRiskProfile[]
+}

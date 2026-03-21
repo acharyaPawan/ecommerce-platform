@@ -5,6 +5,7 @@ import "server-only"
 import { serviceFetch } from "@/lib/server/service-client"
 import type {
   CategoryForecastSnapshot,
+  CustomerChurnRiskSnapshot,
   RecommendationInspectionSnapshot,
 } from "@/lib/types/analytics"
 
@@ -35,6 +36,18 @@ export async function getCategoryForecastSnapshot(options: {
     searchParams: {
       lookbackDays: options.lookbackDays,
       horizonDays: options.horizonDays,
+      limit: options.limit,
+    },
+  })
+}
+
+export async function getCustomerChurnRiskSnapshot(options: {
+  limit?: number
+} = {}): Promise<CustomerChurnRiskSnapshot> {
+  return serviceFetch<CustomerChurnRiskSnapshot>({
+    service: "analytics",
+    path: "/churn/customers",
+    searchParams: {
       limit: options.limit,
     },
   })

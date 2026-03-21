@@ -1,6 +1,7 @@
 import Link from "next/link"
 
 import { CategoryForecastPanel } from "@/components/category-forecast-panel"
+import { ChurnRiskPanel } from "@/components/churn-risk-panel"
 import { InventoryDashboard } from "@/components/inventory-dashboard"
 import { RecommendationInspector } from "@/components/recommendation-inspector"
 import { Button } from "@/components/ui/button"
@@ -8,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { formatRelativeTimeFromNow } from "@/lib/format"
 import { getInventoryDashboardData } from "@/lib/server/dashboard-data"
+import { getChurnInspectorData } from "@/lib/server/churn-insights"
 import { getForecastInspectorData } from "@/lib/server/forecast-insights"
 import { getRecommendationInspectorData } from "@/lib/server/recommendation-insights"
 import type { CatalogProductStatus } from "@/lib/types/catalog"
@@ -77,6 +79,7 @@ export default async function Page({ searchParams }: PageProps) {
   })
   const recommendationInspectorData = await getRecommendationInspectorData()
   const forecastInspectorData = await getForecastInspectorData()
+  const churnInspectorData = await getChurnInspectorData()
 
   return (
     <main className="space-y-8 pb-12">
@@ -98,6 +101,7 @@ export default async function Page({ searchParams }: PageProps) {
 
       <InventoryDashboard data={dashboardData} />
       <CategoryForecastPanel data={forecastInspectorData} />
+      <ChurnRiskPanel data={churnInspectorData} />
       <RecommendationInspector data={recommendationInspectorData} />
     </main>
   )

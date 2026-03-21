@@ -5,6 +5,7 @@ import {
   buildActorWeights,
   buildCollaborativeRecommendations,
   buildCohortActorScores,
+  buildCustomerChurnRiskProfile,
   buildProductHistoryWeights,
   forecastCategoryDemandFromSeries,
   scoreRelatedProducts,
@@ -478,5 +479,38 @@ describe("category forecasting", () => {
     expect(forecasts[0]?.urgency).toBe("watch");
     expect(forecasts[0]?.history).toHaveLength(14);
     expect(forecasts[0]?.forecast).toHaveLength(7);
+  });
+});
+
+describe("customer churn scoring", () => {
+  it("assigns high churn risk to long-inactive shallow customers", () => {
+    const profile = buildCustomerChurnRiskProfile({
+      userId: "user_1",
+      name: "Avery",
+      email: "avery@example.com",
+      confirmedOrders: 1,
+      lastConfirmedOrderAt: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000),
+      lastInteractionAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
+    });
+
+    expect(profile.churnBand).toBe("high");
+    expect(profile.churnScore).toBeGreaterThanOrEqual(70);
+    expect(profile.drivers.length).toBeGreaterThan(0);
+    expect(profile.recommendation).toContain("win-back");
+  });
+
+  it("keeps engaged repeat customers in the low-risk band", () => {
+    const profile = buildCustomerChurnRiskProfile({
+      userId: "user_2",
+      name: "Jordan",
+      email: "jordan@example.com",
+      confirmedOrders: 5,
+      lastConfirmedOrderAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
+      lastInteractionAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+    });
+
+    expect(profile.churnBand).toBe("low");
+    expect(profile.churnScore).toBeLessThan(40);
+    expect(profile.recommendation).toContain("healthy");
   });
 });

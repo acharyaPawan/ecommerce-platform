@@ -13,12 +13,14 @@ import { interactionEventIngestSchema } from "@ecommerce/events";
 import type { AnalyticsServiceConfig } from "../config.js";
 import logger from "../logger.js";
 import {
+  getCustomerChurnRiskSnapshot,
   getCategoryForecastSnapshot,
   getRecommendationInspectionSnapshot,
   getPersonalProductRecommendations,
   getRelatedProductRecommendations,
   recordInteractionEvent,
   resolveInteractionActor,
+  type CustomerChurnRiskSnapshot,
   type CategoryForecastSnapshot,
   type RecordInteractionInput,
   type RecordedInteractionEvent,
@@ -38,6 +40,9 @@ type AnalyticsRouterDeps = {
     horizonDays?: number;
     limit?: number;
   }) => Promise<CategoryForecastSnapshot>;
+  getCustomerChurnRisks?: (input?: {
+    limit?: number;
+  }) => Promise<CustomerChurnRiskSnapshot>;
 };
 
 export const createAnalyticsRouter = ({
@@ -45,6 +50,7 @@ export const createAnalyticsRouter = ({
   recordInteraction = recordInteractionEvent,
   getRecommendationInspection = getRecommendationInspectionSnapshot,
   getCategoryForecasts = getCategoryForecastSnapshot,
+  getCustomerChurnRisks = getCustomerChurnRiskSnapshot,
 }: AnalyticsRouterDeps): Hono => {
   const router = new Hono();
   const verifyOptions = resolveVerifyAuthTokenOptions(config.auth);
@@ -157,6 +163,18 @@ export const createAnalyticsRouter = ({
       limit,
     });
 
+    return c.json(snapshot);
+  });
+
+  router.get("/churn/customers", async (c) => {
+    const limitRaw = c.req.query("limit");
+    const parsedLimit = limitRaw ? Number(limitRaw) : undefined;
+    const limit =
+      parsedLimit && Number.isFinite(parsedLimit) && parsedLimit > 0
+        ? Math.trunc(parsedLimit)
+        : undefined;
+
+    const snapshot = await getCustomerChurnRisks({ limit });
     return c.json(snapshot);
   });
 

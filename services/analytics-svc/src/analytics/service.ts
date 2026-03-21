@@ -2,7 +2,12 @@ import { and, desc, eq, gte, inArray, ne, notInArray, or, sql } from "drizzle-or
 import { randomUUID } from "node:crypto";
 import db from "../db/index.js";
 import { interactionEvents, interactionIngestionKeys } from "../db/schema.js";
-import { catalogCategories, catalogProductCategories } from "../db/external-schema.js";
+import {
+  authUsers,
+  catalogCategories,
+  catalogProductCategories,
+  orderRecords,
+} from "../db/external-schema.js";
 import type {
   InteractionEventIngest,
   InteractionEventSource,
@@ -102,6 +107,29 @@ export type CategoryForecastSnapshot = {
   lookbackDays: number;
   horizonDays: number;
   categories: CategoryDemandForecast[];
+};
+
+export type CustomerChurnRiskSnapshot = {
+  generatedAt: string;
+  customerCount: number;
+  highRiskCount: number;
+  averageScore: number;
+  customers: CustomerChurnRiskProfile[];
+};
+
+export type CustomerChurnRiskProfile = {
+  userId: string;
+  name: string | null;
+  email: string | null;
+  confirmedOrders: number;
+  lastConfirmedOrderAt: string;
+  lastInteractionAt: string | null;
+  daysSinceOrder: number;
+  daysSinceInteraction: number | null;
+  churnScore: number;
+  churnBand: "high" | "medium" | "low";
+  drivers: string[];
+  recommendation: string;
 };
 
 export type CategoryDemandForecast = {
@@ -603,6 +631,133 @@ export async function getCategoryForecastSnapshot(input?: {
     lookbackDays,
     horizonDays,
     categories,
+  };
+}
+
+export async function getCustomerChurnRiskSnapshot(input?: {
+  limit?: number;
+}): Promise<CustomerChurnRiskSnapshot> {
+  const limit = clamp(input?.limit ?? 10, 1, 50);
+
+  const confirmedOrders = await db
+    .select({
+      userId: orderRecords.userId,
+      createdAt: orderRecords.createdAt,
+    })
+    .from(orderRecords)
+    .where(and(eq(orderRecords.status, "confirmed"), sql`${orderRecords.userId} is not null`));
+
+  const orderStatsByUser = new Map<
+    string,
+    {
+      confirmedOrders: number;
+      lastConfirmedOrderAt: Date;
+    }
+  >();
+
+  for (const row of confirmedOrders) {
+    if (!row.userId) {
+      continue;
+    }
+
+    const existing = orderStatsByUser.get(row.userId);
+    if (!existing) {
+      orderStatsByUser.set(row.userId, {
+        confirmedOrders: 1,
+        lastConfirmedOrderAt: row.createdAt,
+      });
+      continue;
+    }
+
+    existing.confirmedOrders += 1;
+    if (row.createdAt.getTime() > existing.lastConfirmedOrderAt.getTime()) {
+      existing.lastConfirmedOrderAt = row.createdAt;
+    }
+  }
+
+  const userIds = Array.from(orderStatsByUser.keys());
+  if (userIds.length === 0) {
+    return {
+      generatedAt: new Date().toISOString(),
+      customerCount: 0,
+      highRiskCount: 0,
+      averageScore: 0,
+      customers: [],
+    };
+  }
+
+  const [users, interactions] = await Promise.all([
+    db
+      .select({
+        id: authUsers.id,
+        name: authUsers.name,
+        email: authUsers.email,
+      })
+      .from(authUsers)
+      .where(inArray(authUsers.id, userIds)),
+    db
+      .select({
+        userId: interactionEvents.userId,
+        occurredAt: interactionEvents.occurredAt,
+      })
+      .from(interactionEvents)
+      .where(inArray(interactionEvents.userId, userIds)),
+  ]);
+
+  const userDetails = new Map(
+    users.map((user) => [user.id, { name: user.name, email: user.email }])
+  );
+  const lastInteractionByUser = new Map<string, Date>();
+
+  for (const row of interactions) {
+    if (!row.userId) {
+      continue;
+    }
+    const existing = lastInteractionByUser.get(row.userId);
+    if (!existing || row.occurredAt.getTime() > existing.getTime()) {
+      lastInteractionByUser.set(row.userId, row.occurredAt);
+    }
+  }
+
+  const customers = userIds
+    .map((userId) => {
+      const orderStats = orderStatsByUser.get(userId)!;
+      const detail = userDetails.get(userId);
+      const lastInteractionAt = lastInteractionByUser.get(userId) ?? null;
+
+      return buildCustomerChurnRiskProfile({
+        userId,
+        name: detail?.name ?? null,
+        email: detail?.email ?? null,
+        confirmedOrders: orderStats.confirmedOrders,
+        lastConfirmedOrderAt: orderStats.lastConfirmedOrderAt,
+        lastInteractionAt,
+      });
+    })
+    .sort((a, b) => {
+      if (b.churnScore !== a.churnScore) {
+        return b.churnScore - a.churnScore;
+      }
+      if (b.daysSinceOrder !== a.daysSinceOrder) {
+        return b.daysSinceOrder - a.daysSinceOrder;
+      }
+      return a.userId.localeCompare(b.userId);
+    })
+    .slice(0, limit);
+
+  const averageScore =
+    customers.length > 0
+      ? roundScore(
+          customers.reduce((sum, customer) => sum + customer.churnScore, 0) / customers.length
+        )
+      : 0;
+
+  return {
+    generatedAt: new Date().toISOString(),
+    customerCount: customers.length,
+    highRiskCount: customers.filter((item) => item.churnBand === "high").length,
+    averageScore,
+    customers,
   };
 }
 
@@ -1347,6 +1502,77 @@ export function forecastCategoryDemandFromSeries(
   };
 }
 
+export function buildCustomerChurnRiskProfile(input: {
+  userId: string;
+  name: string | null;
+  email: string | null;
+  confirmedOrders: number;
+  lastConfirmedOrderAt: Date;
+  lastInteractionAt: Date | null;
+}): CustomerChurnRiskProfile {
+  const daysSinceOrder = diffDaysFromNow(input.lastConfirmedOrderAt);
+  const daysSinceInteraction =
+    input.lastInteractionAt ? diffDaysFromNow(input.lastInteractionAt) : null;
+  let churnScore = 0;
+  const drivers: string[] = [];
+
+  if (daysSinceOrder >= 90) {
+    churnScore += 55;
+    drivers.push("No confirmed order in the last 90 days.");
+  } else if (daysSinceOrder >= 60) {
+    churnScore += 40;
+    drivers.push("Order recency has drifted beyond 60 days.");
+  } else if (daysSinceOrder >= 30) {
+    churnScore += 20;
+    drivers.push("Order recency is starting to soften.");
+  }
+
+  if (daysSinceInteraction === null) {
+    churnScore += 20;
+    drivers.push("No post-purchase interaction history is available.");
+  } else if (daysSinceInteraction >= 45) {
+    churnScore += 25;
+    drivers.push("No storefront activity in the last 45 days.");
+  } else if (daysSinceInteraction >= 21) {
+    churnScore += 15;
+    drivers.push("Customer engagement is cooling off.");
+  }
+
+  if (input.confirmedOrders <= 1) {
+    churnScore += 15;
+    drivers.push("Customer has only one confirmed order so far.");
+  } else if (input.confirmedOrders <= 2) {
+    churnScore += 8;
+    drivers.push("Customer still has a shallow order history.");
+  }
+
+  churnScore = Math.min(churnScore, 100);
+
+  const churnBand =
+    churnScore >= 70 ? "high" : churnScore >= 40 ? "medium" : "low";
+  const recommendation =
+    churnBand === "high"
+      ? "Prioritize a win-back touchpoint or retention offer."
+      : churnBand === "medium"
+        ? "Monitor closely and consider a light re-engagement message."
+        : "Customer looks healthy. No immediate retention action needed.";
+
+  return {
+    userId: input.userId,
+    name: input.name,
+    email: input.email,
+    confirmedOrders: input.confirmedOrders,
+    lastConfirmedOrderAt: input.lastConfirmedOrderAt.toISOString(),
+    lastInteractionAt: input.lastInteractionAt?.toISOString() ?? null,
+    daysSinceOrder,
+    daysSinceInteraction,
+    churnScore,
+    churnBand,
+    drivers: drivers.slice(0, 3),
+    recommendation,
+  };
+}
+
 function summarizeInteractionWindow(events: InteractionRow[]) {
   const eventTypeBreakdown = createEventTypeCounter();
   const productCounts = new Map<string, number>();
@@ -1469,4 +1695,11 @@ function addDays(input: Date, days: number): Date {
 
 function formatDateKey(input: Date): string {
   return input.toISOString().slice(0, 10);
+}
+
+function diffDaysFromNow(input: Date): number {
+  return Math.max(
+    0,
+    Math.floor((Date.now() - input.getTime()) / (24 * 60 * 60 * 1000))
+  );
 }

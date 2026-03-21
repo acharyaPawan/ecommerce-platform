@@ -186,4 +186,39 @@ describe("analytics-svc app", () => {
     expect(res.status).toBe(200);
     expect(getCategoryForecasts).toHaveBeenCalled();
   });
+
+  it("returns a customer churn snapshot", async () => {
+    const getCustomerChurnRisks = vi.fn(async () => ({
+      generatedAt: "2026-03-21T00:00:00.000Z",
+      customerCount: 1,
+      highRiskCount: 1,
+      averageScore: 82,
+      customers: [
+        {
+          userId: "user_1",
+          name: "Avery",
+          email: "avery@example.com",
+          confirmedOrders: 1,
+          lastConfirmedOrderAt: "2025-12-01T00:00:00.000Z",
+          lastInteractionAt: "2026-01-01T00:00:00.000Z",
+          daysSinceOrder: 110,
+          daysSinceInteraction: 79,
+          churnScore: 82,
+          churnBand: "high" as const,
+          drivers: ["No confirmed order in the last 90 days."],
+          recommendation: "Prioritize a win-back touchpoint or retention offer.",
+        },
+      ],
+    }));
+    const app = new Hono();
+    app.route(
+      "/api/analytics",
+      createAnalyticsRouter({ config: testConfig, getCustomerChurnRisks })
+    );
+
+    const res = await app.request("/api/analytics/churn/customers");
+
+    expect(res.status).toBe(200);
+    expect(getCustomerChurnRisks).toHaveBeenCalled();
+  });
 });
