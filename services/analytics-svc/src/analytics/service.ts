@@ -128,6 +128,11 @@ export type CustomerChurnRiskProfile = {
   topCategoryId: string | null;
   topCategoryName: string | null;
   topCategoryShare: number;
+  recentTopCategoryId: string | null;
+  recentTopCategoryName: string | null;
+  recentTopCategoryShare: number;
+  categoryDriftScore: number;
+  categoryDriftBand: "high" | "medium" | "low";
   lastConfirmedOrderAt: string;
   lastInteractionAt: string | null;
   daysSinceOrder: number;
@@ -662,6 +667,7 @@ export async function getCustomerChurnRiskSnapshot(input?: {
       lastConfirmedOrderAt: Date;
       lifetimeValueCents: number;
       productIds: string[];
+      recentProductIds: string[];
     }
   >();
 
@@ -677,13 +683,21 @@ export async function getCustomerChurnRiskSnapshot(input?: {
         lastConfirmedOrderAt: row.createdAt,
         lifetimeValueCents: extractSubtotalCents(row.totals),
         productIds: extractProductIdsFromSnapshot(row.cartSnapshot),
+        recentProductIds:
+          row.createdAt.getTime() >= Date.now() - 30 * 24 * 60 * 60 * 1000
+            ? extractProductIdsFromSnapshot(row.cartSnapshot)
+            : [],
       });
       continue;
     }
 
     existing.confirmedOrders += 1;
+    const productIds = extractProductIdsFromSnapshot(row.cartSnapshot);
     existing.lifetimeValueCents += extractSubtotalCents(row.totals);
-    existing.productIds.push(...extractProductIdsFromSnapshot(row.cartSnapshot));
+    existing.productIds.push(...productIds);
+    if (row.createdAt.getTime() >= Date.now() - 30 * 24 * 60 * 60 * 1000) {
+      existing.recentProductIds.push(...productIds);
+    }
     if (row.createdAt.getTime() > existing.lastConfirmedOrderAt.getTime()) {
       existing.lastConfirmedOrderAt = row.createdAt;
     }
@@ -774,6 +788,16 @@ export async function getCustomerChurnRiskSnapshot(input?: {
       const detail = userDetails.get(userId);
       const lastInteractionAt = lastInteractionByUser.get(userId) ?? null;
       const topCategory = resolveTopCategory(orderStats.productIds, categoriesByProduct);
+      const recentTopCategory = resolveTopCategory(
+        orderStats.recentProductIds,
+        categoriesByProduct
+      );
+      const categoryDriftScore = calculateCategoryDriftScore({
+        lifetimeTopCategoryId: topCategory.categoryId,
+        lifetimeTopCategoryShare: topCategory.share,
+        recentTopCategoryId: recentTopCategory.categoryId,
+        recentTopCategoryShare: recentTopCategory.share,
+      });
 
       return buildCustomerChurnRiskProfile({
         userId,
@@ -787,6 +811,10 @@ export async function getCustomerChurnRiskSnapshot(input?: {
         topCategoryId: topCategory.categoryId,
         topCategoryName: topCategory.categoryName,
         topCategoryShare: topCategory.share,
+        recentTopCategoryId: recentTopCategory.categoryId,
+        recentTopCategoryName: recentTopCategory.categoryName,
+        recentTopCategoryShare: recentTopCategory.share,
+        categoryDriftScore,
         lastConfirmedOrderAt: orderStats.lastConfirmedOrderAt,
         lastInteractionAt,
       });
@@ -1569,6 +1597,10 @@ export function buildCustomerChurnRiskProfile(input: {
   topCategoryId: string | null;
   topCategoryName: string | null;
   topCategoryShare: number;
+  recentTopCategoryId: string | null;
+  recentTopCategoryName: string | null;
+  recentTopCategoryShare: number;
+  categoryDriftScore: number;
   lastConfirmedOrderAt: Date;
   lastInteractionAt: Date | null;
 }): CustomerChurnRiskProfile {
@@ -1621,6 +1653,15 @@ export function buildCustomerChurnRiskProfile(input: {
     drivers.push("Purchase history is concentrated in a single category.");
   }
 
+  const categoryDriftBand = classifyCategoryDriftBand(input.categoryDriftScore);
+  if (categoryDriftBand === "high") {
+    churnScore += 12;
+    drivers.push("Recent category behavior has drifted sharply from long-term preference.");
+  } else if (categoryDriftBand === "medium") {
+    churnScore += 6;
+    drivers.push("Recent category mix is shifting away from the usual purchase pattern.");
+  }
+
   churnScore = Math.min(churnScore, 100);
 
   const churnBand =
@@ -1643,6 +1684,11 @@ export function buildCustomerChurnRiskProfile(input: {
     topCategoryId: input.topCategoryId,
     topCategoryName: input.topCategoryName,
     topCategoryShare: input.topCategoryShare,
+    recentTopCategoryId: input.recentTopCategoryId,
+    recentTopCategoryName: input.recentTopCategoryName,
+    recentTopCategoryShare: input.recentTopCategoryShare,
+    categoryDriftScore: input.categoryDriftScore,
+    categoryDriftBand,
     lastConfirmedOrderAt: input.lastConfirmedOrderAt.toISOString(),
     lastInteractionAt: input.lastInteractionAt?.toISOString() ?? null,
     daysSinceOrder,
@@ -1853,6 +1899,34 @@ function classifyCustomerValueBand(averageOrderValueCents: number): "high" | "me
     return "high";
   }
   if (averageOrderValueCents >= 5_000) {
+    return "medium";
+  }
+  return "low";
+}
+
+function calculateCategoryDriftScore(input: {
+  lifetimeTopCategoryId: string | null;
+  lifetimeTopCategoryShare: number;
+  recentTopCategoryId: string | null;
+  recentTopCategoryShare: number;
+}): number {
+  if (!input.lifetimeTopCategoryId || !input.recentTopCategoryId) {
+    return 0;
+  }
+
+  let drift = Math.abs(input.lifetimeTopCategoryShare - input.recentTopCategoryShare);
+  if (input.lifetimeTopCategoryId !== input.recentTopCategoryId) {
+    drift += 0.5;
+  }
+
+  return roundScore(Math.min(drift, 1));
+}
+
+function classifyCategoryDriftBand(score: number): "high" | "medium" | "low" {
+  if (score >= 0.7) {
+    return "high";
+  }
+  if (score >= 0.35) {
     return "medium";
   }
   return "low";

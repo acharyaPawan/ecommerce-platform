@@ -494,6 +494,10 @@ describe("customer churn scoring", () => {
       topCategoryId: "home",
       topCategoryName: "Home",
       topCategoryShare: 1,
+      recentTopCategoryId: "wellness",
+      recentTopCategoryName: "Wellness",
+      recentTopCategoryShare: 1,
+      categoryDriftScore: 1,
       lastConfirmedOrderAt: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000),
       lastInteractionAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
     });
@@ -502,6 +506,7 @@ describe("customer churn scoring", () => {
     expect(profile.churnScore).toBeGreaterThanOrEqual(70);
     expect(profile.valueBand).toBe("low");
     expect(profile.topCategoryName).toBe("Home");
+    expect(profile.categoryDriftBand).toBe("high");
     expect(profile.drivers.length).toBeGreaterThan(0);
     expect(profile.recommendation).toContain("win-back");
   });
@@ -517,6 +522,10 @@ describe("customer churn scoring", () => {
       topCategoryId: "office",
       topCategoryName: "Office",
       topCategoryShare: 0.4,
+      recentTopCategoryId: "office",
+      recentTopCategoryName: "Office",
+      recentTopCategoryShare: 0.45,
+      categoryDriftScore: 0.05,
       lastConfirmedOrderAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
       lastInteractionAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
     });
@@ -524,6 +533,7 @@ describe("customer churn scoring", () => {
     expect(profile.churnBand).toBe("low");
     expect(profile.churnScore).toBeLessThan(40);
     expect(profile.valueBand).toBe("high");
+    expect(profile.categoryDriftBand).toBe("low");
     expect(profile.recommendation).toContain("healthy");
   });
 });

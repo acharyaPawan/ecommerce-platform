@@ -104,6 +104,9 @@ export function ChurnRiskPanel({
                       {customer.topCategoryName} focus {Math.round(customer.topCategoryShare * 100)}%
                     </Badge>
                   ) : null}
+                  <Badge variant={badgeVariantForDrift(customer.categoryDriftBand)}>
+                    {customer.categoryDriftBand} drift
+                  </Badge>
                 </div>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <ChurnStat
@@ -119,6 +122,15 @@ export function ChurnRiskPanel({
                     }
                   />
                 </div>
+                {customer.recentTopCategoryName ? (
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    Recent category focus is{" "}
+                    <span className="font-medium text-foreground">
+                      {customer.recentTopCategoryName}
+                    </span>{" "}
+                    at {Math.round(customer.recentTopCategoryShare * 100)}% of recent orders.
+                  </p>
+                ) : null}
               </div>
 
               <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
@@ -200,6 +212,17 @@ function badgeVariantForValue(band: "high" | "medium" | "low") {
   switch (band) {
     case "high":
       return "default" as const
+    case "medium":
+      return "secondary" as const
+    case "low":
+      return "outline" as const
+  }
+}
+
+function badgeVariantForDrift(band: "high" | "medium" | "low") {
+  switch (band) {
+    case "high":
+      return "destructive" as const
     case "medium":
       return "secondary" as const
     case "low":

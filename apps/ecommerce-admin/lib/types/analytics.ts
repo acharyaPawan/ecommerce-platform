@@ -108,6 +108,11 @@ export type CustomerChurnRiskProfile = {
   topCategoryId: string | null
   topCategoryName: string | null
   topCategoryShare: number
+  recentTopCategoryId: string | null
+  recentTopCategoryName: string | null
+  recentTopCategoryShare: number
+  categoryDriftScore: number
+  categoryDriftBand: "high" | "medium" | "low"
   lastConfirmedOrderAt: string
   lastInteractionAt: string | null
   daysSinceOrder: number
