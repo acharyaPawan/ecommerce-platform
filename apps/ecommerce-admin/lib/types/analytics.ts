@@ -80,6 +80,12 @@ export type CategoryDemandForecast = {
   trendPct: number
   projectedUnits: number
   confidence: "high" | "medium" | "low"
+  demandStatus: "rising" | "stable" | "softening"
+  riskLevel: "high" | "medium" | "low"
+  urgency: "urgent" | "watch" | "stable"
+  safetyBufferUnits: number
+  planningUnits: number
+  narrative: string
   history: Array<{ date: string; units: number }>
   forecast: Array<{ date: string; units: number }>
 }

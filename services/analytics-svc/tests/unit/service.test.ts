@@ -443,6 +443,10 @@ describe("category forecasting", () => {
     expect(forecast.trendPct).toBe(180);
     expect(forecast.projectedUnits).toBeGreaterThan(56);
     expect(forecast.confidence).toBe("high");
+    expect(forecast.demandStatus).toBe("rising");
+    expect(forecast.riskLevel).toBe("high");
+    expect(forecast.urgency).toBe("urgent");
+    expect(forecast.planningUnits).toBeGreaterThan(forecast.projectedUnits);
     expect(forecast.forecast).toHaveLength(14);
   });
 
@@ -471,6 +475,7 @@ describe("category forecasting", () => {
     expect(forecasts).toHaveLength(1);
     expect(forecasts[0]?.totalObservedUnits).toBe(3);
     expect(forecasts[0]?.confidence).toBe("low");
+    expect(forecasts[0]?.urgency).toBe("watch");
     expect(forecasts[0]?.history).toHaveLength(14);
     expect(forecasts[0]?.forecast).toHaveLength(7);
   });

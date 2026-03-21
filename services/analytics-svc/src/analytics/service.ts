@@ -114,6 +114,12 @@ export type CategoryDemandForecast = {
   trendPct: number;
   projectedUnits: number;
   confidence: "high" | "medium" | "low";
+  demandStatus: "rising" | "stable" | "softening";
+  riskLevel: "high" | "medium" | "low";
+  urgency: "urgent" | "watch" | "stable";
+  safetyBufferUnits: number;
+  planningUnits: number;
+  narrative: string;
   history: Array<{ date: string; units: number }>;
   forecast: Array<{ date: string; units: number }>;
 };
@@ -1296,6 +1302,17 @@ export function forecastCategoryDemandFromSeries(
   const projectedDailyUnits = Math.max(recentAvg * boundedTrendMultiplier, 0);
   const projectedUnits = Math.round(projectedDailyUnits * options.horizonDays);
   const nonZeroDays = series.filter((point) => point.units > 0).length;
+  const confidence = classifyForecastConfidence({
+    totalObservedUnits,
+    nonZeroDays,
+  });
+  const decisionSupport = buildForecastDecisionSupport({
+    trendPct,
+    confidence,
+    projectedUnits,
+    recentWindowUnits,
+    previousWindowUnits,
+  });
 
   const forecastStart =
     series.length > 0
@@ -1318,10 +1335,13 @@ export function forecastCategoryDemandFromSeries(
     previousWindowUnits,
     trendPct,
     projectedUnits,
-    confidence: classifyForecastConfidence({
-      totalObservedUnits,
-      nonZeroDays,
-    }),
+    confidence,
+    demandStatus: decisionSupport.demandStatus,
+    riskLevel: decisionSupport.riskLevel,
+    urgency: decisionSupport.urgency,
+    safetyBufferUnits: decisionSupport.safetyBufferUnits,
+    planningUnits: decisionSupport.planningUnits,
+    narrative: decisionSupport.narrative,
     history: series,
     forecast,
   };
@@ -1371,6 +1391,68 @@ function classifyForecastConfidence(input: {
     return "medium";
   }
   return "low";
+}
+
+function buildForecastDecisionSupport(input: {
+  trendPct: number;
+  confidence: "high" | "medium" | "low";
+  projectedUnits: number;
+  recentWindowUnits: number;
+  previousWindowUnits: number;
+}): Pick<
+  CategoryDemandForecast,
+  | "demandStatus"
+  | "riskLevel"
+  | "urgency"
+  | "safetyBufferUnits"
+  | "planningUnits"
+  | "narrative"
+> {
+  const demandStatus =
+    input.trendPct >= 15 ? "rising" : input.trendPct <= -10 ? "softening" : "stable";
+  const confidenceBufferMultiplier =
+    input.confidence === "high" ? 0.35 : input.confidence === "medium" ? 0.25 : 0.15;
+  const volatilityBufferUnits = Math.max(
+    Math.ceil((input.recentWindowUnits - input.previousWindowUnits) * 0.5),
+    0
+  );
+  const safetyBufferUnits = Math.max(
+    Math.ceil(input.projectedUnits * confidenceBufferMultiplier),
+    volatilityBufferUnits
+  );
+  const planningUnits = input.projectedUnits + safetyBufferUnits;
+
+  const riskLevel =
+    demandStatus === "rising" && input.confidence !== "low"
+      ? "high"
+      : demandStatus === "softening" && input.confidence === "low"
+        ? "medium"
+        : Math.abs(input.trendPct) >= 10 || input.confidence === "low"
+          ? "medium"
+          : "low";
+
+  const urgency =
+    demandStatus === "rising" && input.confidence === "high"
+      ? "urgent"
+      : riskLevel === "medium" || planningUnits > input.recentWindowUnits
+        ? "watch"
+        : "stable";
+
+  const narrative =
+    demandStatus === "rising"
+      ? `Demand is accelerating. Plan for about ${planningUnits} units including a ${safetyBufferUnits}-unit safety buffer.`
+      : demandStatus === "softening"
+        ? `Demand is softening. Hold planning closer to ${planningUnits} units and avoid over-ordering.`
+        : `Demand is stable. Plan around ${planningUnits} units with a ${safetyBufferUnits}-unit buffer.`;
+
+  return {
+    demandStatus,
+    riskLevel,
+    urgency,
+    safetyBufferUnits,
+    planningUnits,
+    narrative,
+  };
 }
 
 function startOfUtcDay(input: Date): Date {

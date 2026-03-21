@@ -71,9 +71,14 @@ export function CategoryForecastPanel({
                     Category {category.categoryId}
                   </CardDescription>
                 </div>
-                <Badge variant={badgeVariantForConfidence(category.confidence)}>
-                  {category.confidence} confidence
-                </Badge>
+                <div className="flex flex-col items-end gap-2">
+                  <Badge variant={badgeVariantForConfidence(category.confidence)}>
+                    {category.confidence} confidence
+                  </Badge>
+                  <Badge variant={badgeVariantForUrgency(category.urgency)}>
+                    {category.urgency}
+                  </Badge>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -83,18 +88,36 @@ export function CategoryForecastPanel({
                   value={formatNumber(category.projectedUnits)}
                 />
                 <ForecastStat
+                  label="Planning units"
+                  value={formatNumber(category.planningUnits)}
+                />
+                <ForecastStat
                   label="Observed units"
                   value={formatNumber(category.totalObservedUnits)}
                 />
                 <ForecastStat
-                  label="Recent 7-day window"
-                  value={formatNumber(category.recentWindowUnits)}
+                  label="Safety buffer"
+                  value={formatNumber(category.safetyBufferUnits)}
                 />
                 <ForecastStat
                   label="Trend"
                   value={`${category.trendPct > 0 ? "+" : ""}${category.trendPct}%`}
                   positive={category.trendPct >= 0}
                 />
+              </div>
+
+              <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={badgeVariantForStatus(category.demandStatus)}>
+                    {category.demandStatus}
+                  </Badge>
+                  <Badge variant={badgeVariantForRisk(category.riskLevel)}>
+                    {category.riskLevel} risk
+                  </Badge>
+                </div>
+                <p className="mt-3 text-sm text-muted-foreground">
+                  {category.narrative}
+                </p>
               </div>
 
               <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
@@ -178,6 +201,39 @@ function badgeVariantForConfidence(confidence: "high" | "medium" | "low") {
   switch (confidence) {
     case "high":
       return "default" as const
+    case "medium":
+      return "secondary" as const
+    case "low":
+      return "outline" as const
+  }
+}
+
+function badgeVariantForUrgency(urgency: "urgent" | "watch" | "stable") {
+  switch (urgency) {
+    case "urgent":
+      return "destructive" as const
+    case "watch":
+      return "secondary" as const
+    case "stable":
+      return "outline" as const
+  }
+}
+
+function badgeVariantForStatus(status: "rising" | "stable" | "softening") {
+  switch (status) {
+    case "rising":
+      return "default" as const
+    case "stable":
+      return "secondary" as const
+    case "softening":
+      return "outline" as const
+  }
+}
+
+function badgeVariantForRisk(risk: "high" | "medium" | "low") {
+  switch (risk) {
+    case "high":
+      return "destructive" as const
     case "medium":
       return "secondary" as const
     case "low":
