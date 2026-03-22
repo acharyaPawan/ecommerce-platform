@@ -113,6 +113,7 @@ export type CustomerChurnRiskProfile = {
   recentTopCategoryShare: number
   categoryDriftScore: number
   categoryDriftBand: "high" | "medium" | "low"
+  retentionPriority: "p1" | "p2" | "p3"
   lastConfirmedOrderAt: string
   lastInteractionAt: string | null
   daysSinceOrder: number
@@ -127,6 +128,8 @@ export type CustomerChurnRiskSnapshot = {
   generatedAt: string
   customerCount: number
   highRiskCount: number
+  highValueHighRiskCount: number
+  highDriftCount: number
   averageScore: number
   customers: CustomerChurnRiskProfile[]
 }

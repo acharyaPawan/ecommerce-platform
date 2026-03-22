@@ -113,6 +113,8 @@ export type CustomerChurnRiskSnapshot = {
   generatedAt: string;
   customerCount: number;
   highRiskCount: number;
+  highValueHighRiskCount: number;
+  highDriftCount: number;
   averageScore: number;
   customers: CustomerChurnRiskProfile[];
 };
@@ -133,6 +135,7 @@ export type CustomerChurnRiskProfile = {
   recentTopCategoryShare: number;
   categoryDriftScore: number;
   categoryDriftBand: "high" | "medium" | "low";
+  retentionPriority: "p1" | "p2" | "p3";
   lastConfirmedOrderAt: string;
   lastInteractionAt: string | null;
   daysSinceOrder: number;
@@ -709,6 +712,8 @@ export async function getCustomerChurnRiskSnapshot(input?: {
       generatedAt: new Date().toISOString(),
       customerCount: 0,
       highRiskCount: 0,
+      highValueHighRiskCount: 0,
+      highDriftCount: 0,
       averageScore: 0,
       customers: [],
     };
@@ -820,6 +825,9 @@ export async function getCustomerChurnRiskSnapshot(input?: {
       });
     })
     .sort((a, b) => {
+      if (priorityRank(a.retentionPriority) !== priorityRank(b.retentionPriority)) {
+        return priorityRank(a.retentionPriority) - priorityRank(b.retentionPriority);
+      }
       if (b.churnScore !== a.churnScore) {
         return b.churnScore - a.churnScore;
       }
@@ -841,6 +849,10 @@ export async function getCustomerChurnRiskSnapshot(input?: {
     generatedAt: new Date().toISOString(),
     customerCount: customers.length,
     highRiskCount: customers.filter((item) => item.churnBand === "high").length,
+    highValueHighRiskCount: customers.filter(
+      (item) => item.churnBand === "high" && item.valueBand === "high"
+    ).length,
+    highDriftCount: customers.filter((item) => item.categoryDriftBand === "high").length,
     averageScore,
     customers,
   };
@@ -1672,6 +1684,11 @@ export function buildCustomerChurnRiskProfile(input: {
       : churnBand === "medium"
         ? "Monitor closely and consider a light re-engagement message."
         : "Customer looks healthy. No immediate retention action needed.";
+  const retentionPriority = resolveRetentionPriority({
+    churnBand,
+    valueBand,
+    categoryDriftBand,
+  });
 
   return {
     userId: input.userId,
@@ -1689,6 +1706,7 @@ export function buildCustomerChurnRiskProfile(input: {
     recentTopCategoryShare: input.recentTopCategoryShare,
     categoryDriftScore: input.categoryDriftScore,
     categoryDriftBand,
+    retentionPriority,
     lastConfirmedOrderAt: input.lastConfirmedOrderAt.toISOString(),
     lastInteractionAt: input.lastInteractionAt?.toISOString() ?? null,
     daysSinceOrder,
@@ -1930,4 +1948,33 @@ function classifyCategoryDriftBand(score: number): "high" | "medium" | "low" {
     return "medium";
   }
   return "low";
+}
+
+function resolveRetentionPriority(input: {
+  churnBand: "high" | "medium" | "low";
+  valueBand: "high" | "medium" | "low";
+  categoryDriftBand: "high" | "medium" | "low";
+}): "p1" | "p2" | "p3" {
+  if (input.churnBand === "high" && input.valueBand === "high") {
+    return "p1";
+  }
+  if (
+    input.churnBand === "high" ||
+    (input.churnBand === "medium" && input.valueBand !== "low") ||
+    input.categoryDriftBand === "high"
+  ) {
+    return "p2";
+  }
+  return "p3";
+}
+
+function priorityRank(priority: "p1" | "p2" | "p3"): number {
+  switch (priority) {
+    case "p1":
+      return 1;
+    case "p2":
+      return 2;
+    case "p3":
+      return 3;
+  }
 }

@@ -38,16 +38,21 @@ export function ChurnRiskPanel({
           description="Customers most likely to need retention action first"
         />
         <MetricCard
-          label="Average churn score"
-          value={formatNumber(data.averageScore)}
-          description="Average risk across the sampled customer cohort"
+          label="P1 retention targets"
+          value={formatNumber(data.highValueHighRiskCount)}
+          description="High-value customers currently sitting in the high-risk band"
         />
         <MetricCard
-          label="Top score"
-          value={formatNumber(data.customers[0]?.churnScore ?? 0)}
+          label="High drift customers"
+          value={formatNumber(data.highDriftCount)}
+          description="Customers whose recent category mix moved sharply from long-term behavior"
+        />
+        <MetricCard
+          label="Average churn score"
+          value={formatNumber(data.averageScore)}
           description={
             data.customers[0]
-              ? `${data.customers[0].name ?? data.customers[0].userId} is currently the highest-risk customer`
+              ? `${data.customers[0].name ?? data.customers[0].userId} is currently the top-priority customer`
               : "No churn-risk profiles available yet"
           }
         />
@@ -65,6 +70,9 @@ export function ChurnRiskPanel({
                   </CardDescription>
                 </div>
                 <div className="flex flex-col items-end gap-2">
+                  <Badge variant={badgeVariantForPriority(customer.retentionPriority)}>
+                    {customer.retentionPriority.toUpperCase()}
+                  </Badge>
                   <Badge variant={badgeVariantForBand(customer.churnBand)}>
                     {customer.churnBand} risk
                   </Badge>
@@ -226,6 +234,17 @@ function badgeVariantForDrift(band: "high" | "medium" | "low") {
     case "medium":
       return "secondary" as const
     case "low":
+      return "outline" as const
+  }
+}
+
+function badgeVariantForPriority(priority: "p1" | "p2" | "p3") {
+  switch (priority) {
+    case "p1":
+      return "destructive" as const
+    case "p2":
+      return "secondary" as const
+    case "p3":
       return "outline" as const
   }
 }

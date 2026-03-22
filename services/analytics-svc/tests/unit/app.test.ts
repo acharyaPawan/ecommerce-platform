@@ -192,6 +192,8 @@ describe("analytics-svc app", () => {
       generatedAt: "2026-03-21T00:00:00.000Z",
       customerCount: 1,
       highRiskCount: 1,
+      highValueHighRiskCount: 0,
+      highDriftCount: 1,
       averageScore: 82,
       customers: [
         {
@@ -210,6 +212,7 @@ describe("analytics-svc app", () => {
           recentTopCategoryShare: 1,
           categoryDriftScore: 1,
           categoryDriftBand: "high" as const,
+          retentionPriority: "p2" as const,
           lastConfirmedOrderAt: "2025-12-01T00:00:00.000Z",
           lastInteractionAt: "2026-01-01T00:00:00.000Z",
           daysSinceOrder: 110,

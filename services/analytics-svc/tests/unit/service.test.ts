@@ -507,6 +507,7 @@ describe("customer churn scoring", () => {
     expect(profile.valueBand).toBe("low");
     expect(profile.topCategoryName).toBe("Home");
     expect(profile.categoryDriftBand).toBe("high");
+    expect(profile.retentionPriority).toBe("p2");
     expect(profile.drivers.length).toBeGreaterThan(0);
     expect(profile.recommendation).toContain("win-back");
   });
@@ -534,6 +535,31 @@ describe("customer churn scoring", () => {
     expect(profile.churnScore).toBeLessThan(40);
     expect(profile.valueBand).toBe("high");
     expect(profile.categoryDriftBand).toBe("low");
+    expect(profile.retentionPriority).toBe("p3");
     expect(profile.recommendation).toContain("healthy");
+  });
+
+  it("escalates high-value high-risk customers to top retention priority", () => {
+    const profile = buildCustomerChurnRiskProfile({
+      userId: "user_3",
+      name: "Taylor",
+      email: "taylor@example.com",
+      confirmedOrders: 4,
+      lifetimeValueCents: 80_000,
+      averageOrderValueCents: 20_000,
+      topCategoryId: "office",
+      topCategoryName: "Office",
+      topCategoryShare: 0.6,
+      recentTopCategoryId: "wellness",
+      recentTopCategoryName: "Wellness",
+      recentTopCategoryShare: 1,
+      categoryDriftScore: 0.9,
+      lastConfirmedOrderAt: new Date(Date.now() - 95 * 24 * 60 * 60 * 1000),
+      lastInteractionAt: new Date(Date.now() - 50 * 24 * 60 * 60 * 1000),
+    });
+
+    expect(profile.churnBand).toBe("high");
+    expect(profile.valueBand).toBe("high");
+    expect(profile.retentionPriority).toBe("p1");
   });
 });
