@@ -1,0 +1,32 @@
+{
+  "name": "@ecommerce/assistant-svc",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node --import ./dist/instrumentation.js dist/index.js",
+    "dev": "tsx watch --import=./dist/instrumentation.js src/index.ts",
+    "build:services": "pnpm run build",
+    "dev:services": "pnpm run dev",
+    "test": "vitest run --root ../.. services/assistant-svc/tests/unit/app.test.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "3.0.47",
+    "@ecommerce/core": "workspace:*",
+    "@hono/node-server": "^1.19.6",
+    "@mastra/core": "1.15.0",
+    "@mastra/hono": "1.2.6",
+    "dotenv": "^17.2.3",
+    "hono": "^4.10.4",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.24",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.16"
+  }
+}
