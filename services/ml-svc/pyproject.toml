@@ -1,0 +1,32 @@
+[project]
+name = "ecommerce-ml-svc"
+version = "0.1.0"
+description = "Python ML service for ecommerce forecasting and model-backed analytics"
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+  "fastapi>=0.116.1",
+  "numpy>=2.3.3",
+  "pydantic>=2.11.9",
+  "uvicorn>=0.36.0",
+]
+
+[dependency-groups]
+dev = [
+  "httpx>=0.28.1",
+  "pytest>=8.4.2",
+]
+
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.uv]
+package = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ml_svc"]
