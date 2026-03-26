@@ -19,13 +19,63 @@ const testConfig: AnalyticsServiceConfig = {
 
 describe("analytics-svc app", () => {
   it("returns ok from root endpoint", async () => {
-    const app = createApp(testConfig);
+    const app = createApp(testConfig, {
+      checkMlReadiness: async () => ({ ready: true, status: 200 }),
+    });
     const res = await app.request("/");
     expect(res.status).toBe(200);
 
     const payload = await res.json() as { service: string; status: string };
     expect(payload.service).toBe("analytics-svc");
     expect(payload.status).toBe("ok");
+  });
+
+  it("reports ready only when the ml service is reachable", async () => {
+    const app = createApp(testConfig, {
+      checkMlReadiness: async () => ({ ready: true, status: 200 }),
+    });
+
+    const res = await app.request("/readyz");
+
+    expect(res.status).toBe(200);
+    const payload = await res.json() as {
+      status: string;
+      dependencies: {
+        mlService: {
+          ready: boolean;
+          url: string;
+          status: number | null;
+        };
+      };
+    };
+
+    expect(payload.status).toBe("ready");
+    expect(payload.dependencies.mlService.ready).toBe(true);
+    expect(payload.dependencies.mlService.url).toBe("http://localhost:8010");
+    expect(payload.dependencies.mlService.status).toBe(200);
+  });
+
+  it("returns degraded readiness when the ml service is unavailable", async () => {
+    const app = createApp(testConfig, {
+      checkMlReadiness: async () => ({ ready: false, status: null }),
+    });
+
+    const res = await app.request("/readyz");
+
+    expect(res.status).toBe(503);
+    const payload = await res.json() as {
+      status: string;
+      dependencies: {
+        mlService: {
+          ready: boolean;
+          status: number | null;
+        };
+      };
+    };
+
+    expect(payload.status).toBe("degraded");
+    expect(payload.dependencies.mlService.ready).toBe(false);
+    expect(payload.dependencies.mlService.status).toBeNull();
   });
 
   it("records anonymous interaction events with a session id", async () => {
