@@ -4,6 +4,7 @@ export type AnalyticsServiceConfig = {
   serviceName: string;
   port: number;
   internalServiceSecret: string;
+  mlServiceUrl: string;
   auth: AuthConfig;
 };
 
@@ -12,6 +13,7 @@ export function loadConfig(): AnalyticsServiceConfig {
     serviceName: "analytics-svc",
     port: parseNumber(process.env.PORT, 3010),
     internalServiceSecret: process.env.INTERNAL_SERVICE_SECRET ?? "dev-internal-secret",
+    mlServiceUrl: stripTrailingSlash(process.env.ML_SERVICE_URL ?? "http://localhost:8010"),
     auth: loadAuthConfig({
       deriveJwksFromIam: {
         iamUrl: process.env.IAM_SERVICE_URL,
@@ -21,6 +23,10 @@ export function loadConfig(): AnalyticsServiceConfig {
       },
     }),
   };
+}
+
+function stripTrailingSlash(value: string): string {
+  return value.replace(/\/+$/, "");
 }
 
 function parseNumber(value: string | undefined, fallback: number): number {

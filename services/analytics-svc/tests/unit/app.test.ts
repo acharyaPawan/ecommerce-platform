@@ -8,6 +8,7 @@ const testConfig: AnalyticsServiceConfig = {
   serviceName: "analytics-svc",
   port: 3010,
   internalServiceSecret: "test-internal-secret",
+  mlServiceUrl: "http://localhost:8010",
   auth: {
     issuer: "https://example.com",
     audience: "ecommerce",

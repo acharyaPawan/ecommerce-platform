@@ -2,6 +2,9 @@ import { and, desc, eq, gte, inArray, ne, notInArray, or, sql } from "drizzle-or
 import { randomUUID } from "node:crypto";
 import db from "../db/index.js";
 import { interactionEvents, interactionIngestionKeys } from "../db/schema.js";
+import { loadConfig } from "../config.js";
+import logger from "../logger.js";
+import { fetchCategoryForecastsFromMlService } from "../forecasting/ml-client.js";
 import {
   authUsers,
   catalogCategories,
@@ -190,6 +193,7 @@ const EVENT_WEIGHTS: Record<InteractionEventType, number> = {
 
 const MIN_COLLABORATIVE_ACTOR_SUPPORT = 2;
 const MAX_ITEMS_PER_EVENT_TYPE_DURING_DIVERSIFICATION = 2;
+const serviceConfig = loadConfig();
 
 export type RecommendationCandidate = {
   productId: string;
@@ -625,10 +629,35 @@ export async function getCategoryForecastSnapshot(input?: {
       sql`date_trunc('day', ${interactionEvents.occurredAt})`
     );
 
-  const categories = buildCategoryDemandForecasts(rows, {
+  const denseCategorySeries = buildCategoryDemandSeries(rows, {
     lookbackDays,
+  });
+
+  let generatedAt = new Date().toISOString();
+  let categories = buildCategoryDemandForecastsFromSeries(denseCategorySeries, {
     horizonDays,
-  })
+  });
+
+  try {
+    const mlSnapshot = await fetchCategoryForecastsFromMlService({
+      baseUrl: serviceConfig.mlServiceUrl,
+      horizonDays,
+      minHistoryDays: 14,
+      categories: denseCategorySeries,
+    });
+    generatedAt = mlSnapshot.generatedAt;
+    categories = mlSnapshot.categories;
+  } catch (error) {
+    logger.warn(
+      {
+        err: error,
+        mlServiceUrl: serviceConfig.mlServiceUrl,
+      },
+      "analytics.forecast.ml_service_unavailable_using_local_baseline"
+    );
+  }
+
+  categories = categories
     .sort((a, b) => {
       if (b.projectedUnits !== a.projectedUnits) {
         return b.projectedUnits - a.projectedUnits;
@@ -641,7 +670,7 @@ export async function getCategoryForecastSnapshot(input?: {
     .slice(0, limit);
 
   return {
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     lookbackDays,
     horizonDays,
     categories,
@@ -1481,6 +1510,27 @@ export function buildCategoryDemandForecasts(
     horizonDays: number;
   }
 ): CategoryDemandForecast[] {
+  return buildCategoryDemandForecastsFromSeries(
+    buildCategoryDemandSeries(rows, { lookbackDays: input.lookbackDays }),
+    { horizonDays: input.horizonDays }
+  );
+}
+
+export function buildCategoryDemandSeries(
+  rows: Array<{
+    categoryId: string;
+    categoryName: string;
+    bucket: string;
+    units: number;
+  }>,
+  input: {
+    lookbackDays: number;
+  }
+): Array<{
+  categoryId: string;
+  categoryName: string;
+  series: Array<{ date: string; units: number }>;
+}> {
   const today = startOfUtcDay(new Date());
   const dayKeys = Array.from({ length: input.lookbackDays }, (_, index) => {
     const current = new Date(today);
@@ -1509,21 +1559,31 @@ export function buildCategoryDemandForecasts(
     existing.byDate.set(row.bucket, (existing.byDate.get(row.bucket) ?? 0) + row.units);
   }
 
-  return Array.from(rowsByCategory.entries()).map(([categoryId, value]) => {
-    const series = dayKeys.map((date) => ({
+  return Array.from(rowsByCategory.entries()).map(([categoryId, value]) => ({
+    categoryId,
+    categoryName: value.categoryName,
+    series: dayKeys.map((date) => ({
       date,
       units: value.byDate.get(date) ?? 0,
-    }));
+    })),
+  }));
+}
 
-    return forecastCategoryDemandFromSeries(
-      {
-        categoryId,
-        categoryName: value.categoryName,
-        series,
-      },
-      { horizonDays: input.horizonDays }
-    );
-  });
+export function buildCategoryDemandForecastsFromSeries(
+  categories: Array<{
+    categoryId: string;
+    categoryName: string;
+    series: Array<{ date: string; units: number }>;
+  }>,
+  input: {
+    horizonDays: number;
+  }
+): CategoryDemandForecast[] {
+  return categories.map((category) =>
+    forecastCategoryDemandFromSeries(category, {
+      horizonDays: input.horizonDays,
+    })
+  );
 }
 
 export function forecastCategoryDemandFromSeries(

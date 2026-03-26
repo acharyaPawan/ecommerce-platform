@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyRecommendationGuardrails,
   buildCategoryDemandForecasts,
+  buildCategoryDemandSeries,
   buildActorWeights,
   buildCollaborativeRecommendations,
   buildCohortActorScores,
@@ -413,6 +414,42 @@ describe("inspection summarization", () => {
 });
 
 describe("category forecasting", () => {
+  it("builds dense category series for ml-service requests", () => {
+    const today = new Date();
+    const latestBucket = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+    const earliestBucket = new Date(latestBucket);
+    earliestBucket.setUTCDate(latestBucket.getUTCDate() - 2);
+
+    const series = buildCategoryDemandSeries(
+      [
+        {
+          categoryId: "cat_home",
+          categoryName: "Home",
+          bucket: earliestBucket.toISOString().slice(0, 10),
+          units: 2,
+        },
+        {
+          categoryId: "cat_home",
+          categoryName: "Home",
+          bucket: latestBucket.toISOString().slice(0, 10),
+          units: 5,
+        },
+      ],
+      {
+        lookbackDays: 3,
+      }
+    );
+
+    expect(series).toHaveLength(1);
+    expect(series[0]?.categoryId).toBe("cat_home");
+    expect(series[0]?.categoryName).toBe("Home");
+    expect(series[0]?.series).toEqual([
+      { date: earliestBucket.toISOString().slice(0, 10), units: 2 },
+      { date: new Date(Date.UTC(latestBucket.getUTCFullYear(), latestBucket.getUTCMonth(), latestBucket.getUTCDate() - 1)).toISOString().slice(0, 10), units: 0 },
+      { date: latestBucket.toISOString().slice(0, 10), units: 5 },
+    ]);
+  });
+
   it("forecasts upward demand from stronger recent windows", () => {
     const forecast = forecastCategoryDemandFromSeries(
       {
