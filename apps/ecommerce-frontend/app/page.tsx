@@ -4,7 +4,6 @@ import { ProductCard } from "@/components/product-card"
 import { PersonalizedProductsSection } from "@/components/recommendations/personalized-products-section"
 import { getAnalyticsSessionId, getOrCreateAnalyticsSessionId } from "@/lib/server/analytics-session"
 import { loadVerifiedAuthSession } from "@/lib/server/auth-session"
-import { rerankPersonalizedHybrid } from "@/lib/recommendations/hybrid"
 import { getPersonalProductRecommendations } from "@/lib/server/recommendations-client"
 import { loadStorefrontData } from "@/lib/server/storefront-data"
 import { getCatalogProduct } from "@/lib/server/catalog-client"
@@ -73,12 +72,7 @@ export default async function Page({ searchParams }: PageProps) {
           )
         ).filter((product): product is NonNullable<typeof product> => Boolean(product))
       : []
-  const rankedPersonalRecommendations = rerankPersonalizedHybrid(
-    seedProducts,
-    personalizedProducts,
-    personalRecommendations.items
-  )
-  const rankedPersonalProducts = rankedPersonalRecommendations
+  const rankedPersonalProducts = personalRecommendations.items
     .map((item) => personalizedProducts.find((product) => product.id === item.productId))
     .filter((product): product is NonNullable<typeof product> => Boolean(product))
 
@@ -215,7 +209,7 @@ export default async function Page({ searchParams }: PageProps) {
       {rankedPersonalProducts.length > 0 ? (
         <PersonalizedProductsSection
           products={rankedPersonalProducts}
-          recommendations={rankedPersonalRecommendations}
+          recommendations={personalRecommendations.items}
           personalizedFor={authSession ? "user" : "session"}
         />
       ) : null}

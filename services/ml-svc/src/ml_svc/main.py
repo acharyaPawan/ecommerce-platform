@@ -5,6 +5,7 @@ import uvicorn
 
 from ml_svc.api.churn import router as churn_router
 from ml_svc.api.forecast import router as forecast_router
+from ml_svc.api.recommendation import router as recommendation_router
 from ml_svc.config import load_settings
 
 settings = load_settings()
@@ -28,6 +29,7 @@ def readyz() -> dict[str, str]:
 
 app.include_router(forecast_router, prefix="/api")
 app.include_router(churn_router, prefix="/api")
+app.include_router(recommendation_router, prefix="/api")
 
 
 def main() -> None:

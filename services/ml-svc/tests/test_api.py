@@ -84,3 +84,39 @@ def test_customer_churn_endpoint() -> None:
     payload = response.json()
     assert len(payload["customers"]) == 1
     assert payload["customers"][0]["churn_band"] == "high"
+
+
+def test_recommendation_rerank_endpoint() -> None:
+    response = client.post(
+        "/api/recommendations/rerank",
+        json={
+            "mode": "related",
+            "anchor_product": {
+                "product_id": "anchor",
+                "title": "Oak Desk Lamp",
+                "description": "Warm wooden desk lighting",
+                "brand": "North",
+                "category_ids": ["lighting", "home"]
+            },
+            "candidates": [
+                {
+                    "product_id": "cand_1",
+                    "behavior_score": 8,
+                    "supporting_signals": 4,
+                    "strongest_event_type": "purchase",
+                    "product": {
+                        "product_id": "cand_1",
+                        "title": "Oak Table Lamp",
+                        "description": "Wooden lamp for home office",
+                        "brand": "North",
+                        "category_ids": ["lighting", "home"]
+                    }
+                }
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload["items"]) == 1
+    assert payload["items"][0]["product_id"] == "cand_1"

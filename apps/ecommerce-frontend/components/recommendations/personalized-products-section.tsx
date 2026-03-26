@@ -1,5 +1,5 @@
 import { ProductCard } from "@/components/product-card"
-import type { RankedRecommendation } from "@/lib/recommendations/hybrid"
+import type { RelatedProductRecommendation } from "@/lib/types/analytics"
 import type { CatalogProduct } from "@/lib/types/catalog"
 
 export function PersonalizedProductsSection({
@@ -8,7 +8,7 @@ export function PersonalizedProductsSection({
   personalizedFor,
 }: {
   products: CatalogProduct[]
-  recommendations: RankedRecommendation[]
+  recommendations: RelatedProductRecommendation[]
   personalizedFor: "user" | "session"
 }) {
   if (products.length === 0) {

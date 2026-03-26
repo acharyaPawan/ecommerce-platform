@@ -9,6 +9,13 @@ export const catalogCategories = catalog.table("categories", {
   name: text("name").notNull(),
 });
 
+export const catalogProducts = catalog.table("products", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description"),
+  brand: text("brand"),
+});
+
 export const catalogProductCategories = catalog.table("product_categories", {
   productId: text("product_id").notNull(),
   categoryId: text("category_id").notNull(),

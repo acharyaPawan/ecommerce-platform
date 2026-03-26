@@ -6,9 +6,11 @@ import { loadConfig } from "../config.js";
 import logger from "../logger.js";
 import { fetchCategoryForecastsFromMlService } from "../forecasting/ml-client.js";
 import { fetchCustomerChurnFromMlService } from "../churning/ml-client.js";
+import { rerankRecommendationsWithMlService, type MlProductFeatures } from "../recommendations/ml-client.js";
 import {
   authUsers,
   catalogCategories,
+  catalogProducts,
   catalogProductCategories,
   orderRecords,
 } from "../db/external-schema.js";
@@ -370,10 +372,6 @@ export async function getRelatedProductRecommendations(input: {
     }
   }
 
-  if (recommendations.length >= limit) {
-    return recommendations;
-  }
-
   const excluded = new Set([input.productId, ...recommendations.map((item) => item.productId)]);
   const fallback = await getPopularProductFallback({
     since,
@@ -381,7 +379,11 @@ export async function getRelatedProductRecommendations(input: {
     limit: limit - recommendations.length,
   });
 
-  return [...recommendations, ...fallback].slice(0, limit);
+  const combined = [...recommendations, ...fallback].slice(0, limit);
+  return rerankRelatedRecommendationsWithMl({
+    anchorProductId: input.productId,
+    recommendations: combined,
+  });
 }
 
 export async function getPersonalProductRecommendations(input: {
@@ -514,13 +516,6 @@ export async function getPersonalProductRecommendations(input: {
     }
   }
 
-  if (recommendations.length >= limit) {
-    return {
-      items: recommendations,
-      seedProductIds,
-    };
-  }
-
   const fallback = await getPopularProductFallback({
     since,
     excludeProductIds: [
@@ -530,8 +525,13 @@ export async function getPersonalProductRecommendations(input: {
     limit: limit - recommendations.length,
   });
 
+  const combined = [...recommendations, ...fallback].slice(0, limit);
+
   return {
-    items: [...recommendations, ...fallback].slice(0, limit),
+    items: await rerankPersonalRecommendationsWithMl({
+      seedProductIds,
+      recommendations: combined,
+    }),
     seedProductIds,
   };
 }
@@ -1270,6 +1270,118 @@ export function buildCollaborativeRecommendations(
   }));
 }
 
+async function rerankRelatedRecommendationsWithMl(input: {
+  anchorProductId: string;
+  recommendations: RelatedProductRecommendation[];
+}): Promise<RelatedProductRecommendation[]> {
+  if (input.recommendations.length <= 1) {
+    return input.recommendations;
+  }
+
+  const productIds = [input.anchorProductId, ...input.recommendations.map((item) => item.productId)];
+  const features = await loadProductFeatures(productIds);
+  const anchorProduct = features.get(input.anchorProductId);
+  if (!anchorProduct) {
+    return input.recommendations;
+  }
+
+  return rerankRecommendationsWithMl({
+    mode: "related",
+    anchorProduct,
+    recommendations: input.recommendations,
+    features,
+  });
+}
+
+async function rerankPersonalRecommendationsWithMl(input: {
+  seedProductIds: string[];
+  recommendations: RelatedProductRecommendation[];
+}): Promise<RelatedProductRecommendation[]> {
+  if (input.recommendations.length <= 1) {
+    return input.recommendations;
+  }
+
+  const productIds = [...input.seedProductIds, ...input.recommendations.map((item) => item.productId)];
+  const features = await loadProductFeatures(productIds);
+  const seedProducts = input.seedProductIds
+    .map((productId) => features.get(productId))
+    .filter((product): product is MlProductFeatures => Boolean(product));
+
+  return rerankRecommendationsWithMl({
+    mode: "personal",
+    seedProducts,
+    recommendations: input.recommendations,
+    features,
+  });
+}
+
+async function rerankRecommendationsWithMl(input: {
+  mode: "related" | "personal";
+  anchorProduct?: MlProductFeatures;
+  seedProducts?: MlProductFeatures[];
+  recommendations: RelatedProductRecommendation[];
+  features: Map<string, MlProductFeatures>;
+}): Promise<RelatedProductRecommendation[]> {
+  const candidates = input.recommendations
+    .map((recommendation) => {
+      const product = input.features.get(recommendation.productId);
+      if (!product) {
+        return null;
+      }
+      return {
+        productId: recommendation.productId,
+        behaviorScore: recommendation.score,
+        supportingSignals: recommendation.supportingSignals,
+        strongestEventType: recommendation.strongestEventType,
+        product,
+      };
+    })
+    .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate));
+
+  if (candidates.length <= 1) {
+    return input.recommendations;
+  }
+
+  try {
+    const reranked = await rerankRecommendationsWithMlService({
+      baseUrl: serviceConfig.mlServiceUrl,
+      mode: input.mode,
+      anchorProduct: input.anchorProduct,
+      seedProducts: input.seedProducts,
+      candidates,
+    });
+    const rerankedById = new Map(reranked.map((item) => [item.productId, item]));
+
+    return input.recommendations
+      .map((recommendation) => {
+        const rerank = rerankedById.get(recommendation.productId);
+        if (!rerank) {
+          return recommendation;
+        }
+
+        return {
+          ...recommendation,
+          score: rerank.finalScore,
+          explanation: {
+            ...recommendation.explanation,
+            summary: rerank.summary,
+            reasons: Array.from(new Set([...recommendation.explanation.reasons, ...rerank.reasons])).slice(0, 4),
+          },
+        };
+      })
+      .sort((a, b) => b.score - a.score);
+  } catch (error) {
+    logger.warn(
+      {
+        err: error,
+        mlServiceUrl: serviceConfig.mlServiceUrl,
+      },
+      "analytics.recommendations.ml_service_unavailable_using_existing_order"
+    );
+    return input.recommendations;
+  }
+}
+
 export function applyRecommendationGuardrails(
   candidates: RecommendationCandidate[],
   limit: number
@@ -2003,6 +2115,52 @@ function extractProductIdsFromSnapshot(input: unknown): string[] {
   return items
     .map((item) => item.productId)
     .filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+}
+
+async function loadProductFeatures(productIds: string[]): Promise<Map<string, MlProductFeatures>> {
+  const deduped = Array.from(new Set(productIds.filter((productId) => productId.trim().length > 0)));
+  if (deduped.length === 0) {
+    return new Map();
+  }
+
+  const [products, categoryRows] = await Promise.all([
+    db
+      .select({
+        id: catalogProducts.id,
+        title: catalogProducts.title,
+        description: catalogProducts.description,
+        brand: catalogProducts.brand,
+      })
+      .from(catalogProducts)
+      .where(inArray(catalogProducts.id, deduped)),
+    db
+      .select({
+        productId: catalogProductCategories.productId,
+        categoryId: catalogProductCategories.categoryId,
+      })
+      .from(catalogProductCategories)
+      .where(inArray(catalogProductCategories.productId, deduped)),
+  ]);
+
+  const categoriesByProduct = new Map<string, string[]>();
+  for (const row of categoryRows) {
+    const existing = categoriesByProduct.get(row.productId) ?? [];
+    existing.push(row.categoryId);
+    categoriesByProduct.set(row.productId, existing);
+  }
+
+  return new Map(
+    products.map((product) => [
+      product.id,
+      {
+        productId: product.id,
+        title: product.title,
+        description: product.description,
+        brand: product.brand,
+        categoryIds: categoriesByProduct.get(product.id) ?? [],
+      },
+    ])
+  );
 }
 
 function resolveTopCategory(

@@ -1,7 +1,7 @@
 import Link from "next/link"
 
 import { ProductCard } from "@/components/product-card"
-import type { RankedRecommendation } from "@/lib/recommendations/hybrid"
+import type { RelatedProductRecommendation } from "@/lib/types/analytics"
 import type { CatalogProduct } from "@/lib/types/catalog"
 
 export function RelatedProductsSection({
@@ -9,7 +9,7 @@ export function RelatedProductsSection({
   recommendations,
 }: {
   products: CatalogProduct[]
-  recommendations: RankedRecommendation[]
+  recommendations: RelatedProductRecommendation[]
 }) {
   if (products.length === 0) {
     return null
