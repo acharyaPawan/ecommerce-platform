@@ -50,3 +50,37 @@ def test_category_forecast_endpoint() -> None:
     assert payload["horizon_days"] == 7
     assert len(payload["categories"]) == 1
     assert len(payload["categories"][0]["forecast"]) == 7
+
+
+def test_customer_churn_endpoint() -> None:
+    response = client.post(
+        "/api/churn/customers",
+        json={
+            "customers": [
+                {
+                    "user_id": "user_1",
+                    "name": "Avery",
+                    "email": "avery@example.com",
+                    "confirmed_orders": 1,
+                    "lifetime_value_cents": 4200,
+                    "average_order_value_cents": 4200,
+                    "top_category_id": "home",
+                    "top_category_name": "Home",
+                    "top_category_share": 1,
+                    "recent_top_category_id": "wellness",
+                    "recent_top_category_name": "Wellness",
+                    "recent_top_category_share": 1,
+                    "category_drift_score": 1,
+                    "days_since_order": 100,
+                    "days_since_interaction": 60,
+                    "last_confirmed_order_at": "2025-12-16T00:00:00Z",
+                    "last_interaction_at": "2026-01-25T00:00:00Z"
+                }
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload["customers"]) == 1
+    assert payload["customers"][0]["churn_band"] == "high"

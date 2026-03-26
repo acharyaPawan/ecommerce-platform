@@ -5,6 +5,7 @@ import { interactionEvents, interactionIngestionKeys } from "../db/schema.js";
 import { loadConfig } from "../config.js";
 import logger from "../logger.js";
 import { fetchCategoryForecastsFromMlService } from "../forecasting/ml-client.js";
+import { fetchCustomerChurnFromMlService } from "../churning/ml-client.js";
 import {
   authUsers,
   catalogCategories,
@@ -816,8 +817,7 @@ export async function getCustomerChurnRiskSnapshot(input?: {
     categoriesByProduct.set(row.productId, existing);
   }
 
-  const customers = userIds
-    .map((userId) => {
+  const preparedCustomers = userIds.map((userId) => {
       const orderStats = orderStatsByUser.get(userId)!;
       const detail = userDetails.get(userId);
       const lastInteractionAt = lastInteractionByUser.get(userId) ?? null;
@@ -833,7 +833,7 @@ export async function getCustomerChurnRiskSnapshot(input?: {
         recentTopCategoryShare: recentTopCategory.share,
       });
 
-      return buildCustomerChurnRiskProfile({
+      return buildCustomerChurnInput({
         userId,
         name: detail?.name ?? null,
         email: detail?.email ?? null,
@@ -852,7 +852,11 @@ export async function getCustomerChurnRiskSnapshot(input?: {
         lastConfirmedOrderAt: orderStats.lastConfirmedOrderAt,
         lastInteractionAt,
       });
-    })
+    });
+
+  let generatedAt = new Date().toISOString();
+  let customers = preparedCustomers
+    .map((customer) => buildCustomerChurnRiskProfile(customer))
     .sort((a, b) => {
       if (priorityRank(a.retentionPriority) !== priorityRank(b.retentionPriority)) {
         return priorityRank(a.retentionPriority) - priorityRank(b.retentionPriority);
@@ -864,8 +868,57 @@ export async function getCustomerChurnRiskSnapshot(input?: {
         return b.daysSinceOrder - a.daysSinceOrder;
       }
       return a.userId.localeCompare(b.userId);
-    })
-    .slice(0, limit);
+    });
+
+  try {
+    const mlSnapshot = await fetchCustomerChurnFromMlService({
+      baseUrl: serviceConfig.mlServiceUrl,
+      customers: preparedCustomers.map((customer) => ({
+        userId: customer.userId,
+        name: customer.name,
+        email: customer.email,
+        confirmedOrders: customer.confirmedOrders,
+        lifetimeValueCents: customer.lifetimeValueCents,
+        averageOrderValueCents: customer.averageOrderValueCents,
+        topCategoryId: customer.topCategoryId,
+        topCategoryName: customer.topCategoryName,
+        topCategoryShare: customer.topCategoryShare,
+        recentTopCategoryId: customer.recentTopCategoryId,
+        recentTopCategoryName: customer.recentTopCategoryName,
+        recentTopCategoryShare: customer.recentTopCategoryShare,
+        categoryDriftScore: customer.categoryDriftScore,
+        daysSinceOrder: diffDaysFromNow(customer.lastConfirmedOrderAt),
+        daysSinceInteraction: customer.lastInteractionAt
+          ? diffDaysFromNow(customer.lastInteractionAt)
+          : null,
+        lastConfirmedOrderAt: customer.lastConfirmedOrderAt.toISOString(),
+        lastInteractionAt: customer.lastInteractionAt?.toISOString() ?? null,
+      })),
+    });
+    generatedAt = mlSnapshot.generatedAt;
+    customers = mlSnapshot.customers.sort((a, b) => {
+      if (priorityRank(a.retentionPriority) !== priorityRank(b.retentionPriority)) {
+        return priorityRank(a.retentionPriority) - priorityRank(b.retentionPriority);
+      }
+      if (b.churnScore !== a.churnScore) {
+        return b.churnScore - a.churnScore;
+      }
+      if (b.daysSinceOrder !== a.daysSinceOrder) {
+        return b.daysSinceOrder - a.daysSinceOrder;
+      }
+      return a.userId.localeCompare(b.userId);
+    });
+  } catch (error) {
+    logger.warn(
+      {
+        err: error,
+        mlServiceUrl: serviceConfig.mlServiceUrl,
+      },
+      "analytics.churn.ml_service_unavailable_using_local_baseline"
+    );
+  }
+
+  customers = customers.slice(0, limit);
 
   const averageScore =
     customers.length > 0
@@ -875,7 +928,7 @@ export async function getCustomerChurnRiskSnapshot(input?: {
       : 0;
 
   return {
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     customerCount: customers.length,
     highRiskCount: customers.filter((item) => item.churnBand === "high").length,
     highValueHighRiskCount: customers.filter(
@@ -1776,6 +1829,26 @@ export function buildCustomerChurnRiskProfile(input: {
     drivers: drivers.slice(0, 3),
     recommendation,
   };
+}
+
+export function buildCustomerChurnInput(input: {
+  userId: string;
+  name: string | null;
+  email: string | null;
+  confirmedOrders: number;
+  lifetimeValueCents: number;
+  averageOrderValueCents: number;
+  topCategoryId: string | null;
+  topCategoryName: string | null;
+  topCategoryShare: number;
+  recentTopCategoryId: string | null;
+  recentTopCategoryName: string | null;
+  recentTopCategoryShare: number;
+  categoryDriftScore: number;
+  lastConfirmedOrderAt: Date;
+  lastInteractionAt: Date | null;
+}) {
+  return input;
 }
 
 function summarizeInteractionWindow(events: InteractionRow[]) {
